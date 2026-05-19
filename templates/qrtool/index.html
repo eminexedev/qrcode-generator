@@ -1,0 +1,182 @@
+{% extends "qrtool/base.html" %}
+
+{% block content %}
+<div class="glass-card rounded-4 p-4 p-lg-4">
+    <ul class="nav nav-tabs mb-4" id="toolTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#generator" type="button" role="tab">QR Üret</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#scanner" type="button" role="tab">QR Çözümle</button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="generator" role="tabpanel">
+            <form method="post" enctype="multipart/form-data" class="row g-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="generate">
+
+                <div class="col-12 col-lg-4">
+                    <label class="form-label">Veri Türü</label>
+                    {{ qr_form.data_type }}
+                </div>
+                <div class="col-12 col-lg-4">
+                    <label class="form-label">Çıktı Formatı</label>
+                    {{ qr_form.output_format }}
+                </div>
+                <div class="col-12 col-lg-4">
+                    <label class="form-label">Logo / İkon</label>
+                    {{ qr_form.logo }}
+                </div>
+
+                <div class="col-12 field-group" data-field-group="url">
+                    <label class="form-label">URL</label>
+                    {{ qr_form.url }}
+                </div>
+
+                <div class="col-12 field-group d-none" data-field-group="wifi">
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label">Wi-Fi Adı (SSID)</label>
+                            {{ qr_form.wifi_ssid }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Şifre</label>
+                            {{ qr_form.wifi_password }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Şifreleme</label>
+                            {{ qr_form.wifi_encryption }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 field-group d-none" data-field-group="vcard">
+                    <div class="row g-3">
+                        <div class="col-md-3">{{ qr_form.vcard_first_name.label_tag }}{{ qr_form.vcard_first_name }}</div>
+                        <div class="col-md-3">{{ qr_form.vcard_last_name.label_tag }}{{ qr_form.vcard_last_name }}</div>
+                        <div class="col-md-3">{{ qr_form.vcard_phone.label_tag }}{{ qr_form.vcard_phone }}</div>
+                        <div class="col-md-3">{{ qr_form.vcard_email.label_tag }}{{ qr_form.vcard_email }}</div>
+                        <div class="col-md-4">{{ qr_form.vcard_org.label_tag }}{{ qr_form.vcard_org }}</div>
+                        <div class="col-md-4">{{ qr_form.vcard_title.label_tag }}{{ qr_form.vcard_title }}</div>
+                        <div class="col-md-4">{{ qr_form.vcard_website.label_tag }}{{ qr_form.vcard_website }}</div>
+                    </div>
+                </div>
+
+                <div class="col-12 field-group d-none" data-field-group="crypto">
+                    <div class="row g-3">
+                        <div class="col-md-3">{{ qr_form.crypto_type.label_tag }}{{ qr_form.crypto_type }}</div>
+                        <div class="col-md-5">{{ qr_form.crypto_address.label_tag }}{{ qr_form.crypto_address }}</div>
+                        <div class="col-md-2">{{ qr_form.crypto_label.label_tag }}{{ qr_form.crypto_label }}</div>
+                        <div class="col-md-2">{{ qr_form.crypto_amount.label_tag }}{{ qr_form.crypto_amount }}</div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Ana Renk</label>
+                    {{ qr_form.primary_color }}
+                </div>
+                <div class="col-12 col-lg-3" id="secondary-color-wrap">
+                    <label class="form-label">İkinci Renk</label>
+                    {{ qr_form.secondary_color }}
+                </div>
+                <div class="col-12 col-lg-2 d-flex align-items-end">
+                    <div class="form-check">
+                        {{ qr_form.use_gradient }}
+                        <label class="form-check-label">Gradient kullan</label>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-2 d-flex align-items-end">
+                    <div class="form-check">
+                        {{ qr_form.transparent_bg }}
+                        <label class="form-check-label">Şeffaf arka plan</label>
+                    </div>
+                </div>
+
+                <div class="col-12 d-flex gap-2 flex-wrap">
+                    <button class="btn btn-success px-4" type="submit">QR Üret</button>
+                    <span class="small-note align-self-center">Logo ve yüksek hata toleransı için üretimde H seviyesinde hata düzeltme kullanılır.</span>
+                </div>
+            </form>
+        </div>
+
+        <div class="tab-pane fade" id="scanner" role="tabpanel">
+            <form method="post" enctype="multipart/form-data" class="row g-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="scan">
+                <div class="col-12 col-lg-8">
+                    <label class="form-label">QR Görseli</label>
+                    {{ scan_form.image }}
+                </div>
+                <div class="col-12 col-lg-4 d-flex align-items-end">
+                    <button class="btn btn-info px-4 text-dark fw-semibold" type="submit">QR Çözümle</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if generated or scan_result %}
+<div class="row g-4 mt-3">
+    <div class="col-12 col-lg-7">
+        <div class="glass-card rounded-4 p-4 h-100">
+            <h3 class="h5 mb-3">Sonuç</h3>
+
+            {% if security_result %}
+                <div class="mb-3">
+                    <span class="badge {% if security_result.safe %}badge-safe{% else %}badge-suspicious{% endif %}">
+                        {{ security_result.status_label }}
+                    </span>
+                </div>
+                {% if security_result.reasons %}
+                    <div class="alert alert-warning bg-transparent text-light border-warning">
+                        <strong>Bulgu:</strong>
+                        <ul class="mb-0 mt-2">
+                            {% for reason in security_result.reasons %}
+                                <li>{{ reason }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+            {% endif %}
+
+            {% if decoded_text %}
+                <div class="mb-4">
+                    <label class="form-label muted">Çözümlenen Metin</label>
+                    <textarea class="form-control" rows="6" readonly>{{ decoded_text }}</textarea>
+                </div>
+            {% endif %}
+
+            {% if payload %}
+                <div class="mb-4">
+                    <label class="form-label muted">Üretilen Veri</label>
+                    <textarea class="form-control" rows="6" readonly>{{ payload }}</textarea>
+                </div>
+            {% endif %}
+
+            {% if qr_data_uri %}
+                <div class="d-flex gap-2 flex-wrap">
+                    <a class="btn btn-outline-light" href="{{ qr_data_uri }}" download="{{ download_name }}">İndir</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+        <div class="glass-card rounded-4 p-4 h-100">
+            <h3 class="h5 mb-3">Önizleme</h3>
+            <div class="preview-box p-3">
+                {% if qr_svg %}
+                    <div class="w-100">{{ qr_svg|safe }}</div>
+                {% elif qr_data_uri %}
+                    <img src="{{ qr_data_uri }}" alt="QR önizleme" class="img-fluid rounded-3 shadow-sm">
+                {% else %}
+                    <span class="muted">Henüz çıktı yok.</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

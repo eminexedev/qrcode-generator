@@ -129,10 +129,17 @@ def security_scan_url(url: str) -> SecurityResult:
 
 
 def _interpolate_color(start: Sequence[int], end: Sequence[int], ratio: float) -> tuple[int, int, int]:
-    # Accept RGB or RGBA tuples; only interpolate RGB channels
-    s: tuple[int, int, int] = tuple(start[:3])  # type: ignore[arg-type]
-    e: tuple[int, int, int] = tuple(end[:3])  # type: ignore[arg-type]
-    return tuple(int(s[i] + (e[i] - s[i]) * ratio) for i in range(3))
+    # Accept RGB or RGBA tuples/sequences; only interpolate RGB channels.
+    # Build explicit 3-tuples so the type-checker knows the fixed length.
+    s0 = int(start[0]) if len(start) > 0 else 0
+    s1 = int(start[1]) if len(start) > 1 else 0
+    s2 = int(start[2]) if len(start) > 2 else 0
+    e0 = int(end[0]) if len(end) > 0 else 0
+    e1 = int(end[1]) if len(end) > 1 else 0
+    e2 = int(end[2]) if len(end) > 2 else 0
+    s: tuple[int, int, int] = (s0, s1, s2)
+    e: tuple[int, int, int] = (e0, e1, e2)
+    return (int(s[0] + (e[0] - s[0]) * ratio), int(s[1] + (e[1] - s[1]) * ratio), int(s[2] + (e[2] - s[2]) * ratio))
 
 
 def _make_qr_matrix(payload: str):

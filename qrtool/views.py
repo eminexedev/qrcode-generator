@@ -10,10 +10,10 @@ import cv2
 import numpy as np
 import requests
 import segno
-import zxingcpp
 from PIL import Image, ImageColor, ImageDraw, ImageOps
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
+from pyzbar.pyzbar import decode as pyzbar_decode
 
 from .forms import QRBuildForm, QRScanForm
 
@@ -37,6 +37,13 @@ class SecurityResult:
     status_label: str
     reasons: list[str]
     final_url: str | None = None
+
+
+@dataclass
+class QRDecodeResult:
+    text: str
+    barcode_type: str
+    filter_name: str
 
 
 def build_wifi_payload(ssid: str, password: str, encryption: str) -> str:
@@ -406,11 +413,13 @@ def _segno_svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
     return output.getvalue()
 
 
-def _decode_qr_image(uploaded_file) -> str:
+def _decode_qr_image(uploaded_file) -> QRDecodeResult | None:
+    # Dosyayı RAM'de oku; diske yazmadan OpenCV ile işlenecek ham byte dizisini hazırla.
     raw_bytes = uploaded_file.read()
 
     image_sources = [raw_bytes]
     if uploaded_file.name.lower().endswith(".svg") or getattr(uploaded_file, "content_type", "") == "image/svg+xml":
+        # SVG yüklemelerinde önce PNG'ye dönüştürüp aynı ön işleme hattını uygula.
         fitz_png_bytes = _svg_bytes_to_png_bytes(raw_bytes)
         if fitz_png_bytes:
             image_sources.insert(0, fitz_png_bytes)
@@ -419,49 +428,40 @@ def _decode_qr_image(uploaded_file) -> str:
         if segno_png_bytes:
             image_sources.insert(0, segno_png_bytes)
 
-    detector = cv2.QRCodeDetector()
+    def iter_preprocessed_images(color_image: np.ndarray):
+        # QR çözümleme için sırayla denenmesi istenen dört varyasyonu üret.
+        grayscale_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
+        _, binary_image = cv2.threshold(grayscale_image, 127, 255, cv2.THRESH_BINARY)
+        _, otsu_image = cv2.threshold(grayscale_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    def decode_image(image_array: np.ndarray) -> str:
-        candidates: list[np.ndarray] = [image_array]
+        return [
+            ("Orijinal Hali", color_image),
+            ("Gri Tonlama", grayscale_image),
+            ("Kesin Siyah/Beyaz", binary_image),
+            ("Dinamik Işık Dengesi", otsu_image),
+        ]
 
-        if len(image_array.shape) == 3:
-            grayscale = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
-        else:
-            grayscale = image_array
+    def decode_with_pyzbar(image_array: np.ndarray, filter_name: str) -> QRDecodeResult | None:
+        # pyzbar sonuçları arasında yalnızca QR kodu kabul et.
+        decoded_items = pyzbar_decode(image_array)
+        for item in decoded_items:
+            barcode_type = item.type or "QR_CODE"
+            if barcode_type.upper() != "QRCODE":
+                continue
 
-        candidates.append(grayscale)
-        candidates.append(cv2.equalizeHist(grayscale))
-        candidates.append(cv2.threshold(grayscale, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1])
-        candidates.append(cv2.threshold(grayscale, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1])
+            try:
+                text = item.data.decode("utf-8").strip()
+            except UnicodeDecodeError:
+                text = item.data.decode("utf-8", errors="replace").strip()
 
-        for candidate in list(candidates):
-            candidates.append(cv2.resize(candidate, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC))
-            candidates.append(cv2.resize(candidate, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC))
+            if text:
+                return QRDecodeResult(
+                    text=text,
+                    barcode_type=barcode_type,
+                    filter_name=filter_name,
+                )
 
-        for candidate in candidates:
-            decoded_text, _, _ = detector.detectAndDecode(candidate)
-            decoded_text = decoded_text.strip()
-            if decoded_text:
-                return decoded_text
-
-            zxing_results = zxingcpp.read_barcodes(candidate)
-            for result in zxing_results:
-                if result.text:
-                    return result.text.strip()
-
-        for candidate in candidates:
-            inverted = cv2.bitwise_not(candidate)
-            decoded_text, _, _ = detector.detectAndDecode(inverted)
-            decoded_text = decoded_text.strip()
-            if decoded_text:
-                return decoded_text
-
-            zxing_results = zxingcpp.read_barcodes(inverted)
-            for result in zxing_results:
-                if result.text:
-                    return result.text.strip()
-
-        return ""
+        return None
 
     for source_bytes in image_sources:
         image_bytes = np.frombuffer(source_bytes, np.uint8)
@@ -469,13 +469,13 @@ def _decode_qr_image(uploaded_file) -> str:
         if image is None:
             continue
 
-        # Help the type-checker: imdecode returns ndarray on success
         image_array: np.ndarray = cast(np.ndarray, image)
-        decoded_text = decode_image(image_array)
-        if decoded_text:
-            return decoded_text
+        for filter_name, candidate_image in iter_preprocessed_images(image_array):
+            decode_result = decode_with_pyzbar(candidate_image, filter_name)
+            if decode_result:
+                return decode_result
 
-    return ""
+    return None
 
 
 def _make_data_uri(binary: bytes, mime_type: str) -> str:
@@ -492,6 +492,7 @@ def index(request: HttpRequest) -> HttpResponse:
         "scan_form": scan_form,
         "generated": False,
         "scan_result": None,
+        "active_tab": "generator",
         "security_result": None,
         "qr_data_uri": None,
         "qr_svg": None,
@@ -576,6 +577,7 @@ def index(request: HttpRequest) -> HttpResponse:
             context.update(
                 {
                     "generated": True,
+                    "active_tab": "generator",
                     "security_result": security_result,
                     "qr_data_uri": qr_data_uri,
                     "qr_svg": qr_svg,
@@ -584,20 +586,45 @@ def index(request: HttpRequest) -> HttpResponse:
                 }
             )
 
-        elif action == "scan" and scan_form.is_valid():
-            decoded_text = _decode_qr_image(scan_form.cleaned_data["image"])
-            security_result = security_scan_url(decoded_text) if is_http_url(decoded_text) else SecurityResult(
-                safe=True,
-                status_label="Güvenli",
-                reasons=[],
-                final_url=None,
-            )
-            context.update(
-                {
-                    "scan_result": True,
-                    "decoded_text": decoded_text,
-                    "security_result": security_result,
-                }
-            )
+        elif action == "scan":
+            # Yeni anahtar adı olan qr_image'i önce dene; eski form alanı image ile geriye dönük uyumluluk sağla.
+            uploaded_file = request.FILES.get("qr_image") or request.FILES.get("image")
+
+            if uploaded_file is None:
+                context.update(
+                    {
+                        "scan_result": True,
+                        "scan_error": "QR kod okunamadı",
+                    }
+                )
+            else:
+                decode_result = _decode_qr_image(uploaded_file)
+
+                if decode_result is None:
+                    context.update(
+                        {
+                            "scan_result": True,
+                            "active_tab": "scanner",
+                            "scan_error": "QR kod okunamadı",
+                        }
+                    )
+                else:
+                    decoded_text = decode_result.text
+                    security_result = security_scan_url(decoded_text) if is_http_url(decoded_text) else SecurityResult(
+                        safe=True,
+                        status_label="Güvenli",
+                        reasons=[],
+                        final_url=None,
+                    )
+                    context.update(
+                        {
+                            "scan_result": True,
+                            "active_tab": "scanner",
+                            "decoded_text": decoded_text,
+                            "decoded_type": decode_result.barcode_type,
+                            "used_filter": decode_result.filter_name,
+                            "security_result": security_result,
+                        }
+                    )
 
     return render(request, "qrtool/index.html", context)

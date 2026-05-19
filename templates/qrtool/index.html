@@ -4,15 +4,15 @@
 <div class="glass-card rounded-4 p-4 p-lg-4">
     <ul class="nav nav-tabs mb-4" id="toolTabs" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link app-button app-button--tab active" data-bs-toggle="tab" data-bs-target="#generator" type="button" role="tab">QR Üret</button>
+            <button class="nav-link app-button app-button--tab {% if active_tab != 'scanner' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#generator" type="button" role="tab"{% if active_tab != 'scanner' %} aria-selected="true"{% else %} aria-selected="false"{% endif %}>QR Üret</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link app-button app-button--tab" data-bs-toggle="tab" data-bs-target="#scanner" type="button" role="tab">QR Çözümle</button>
+            <button class="nav-link app-button app-button--tab {% if active_tab == 'scanner' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#scanner" type="button" role="tab"{% if active_tab == 'scanner' %} aria-selected="true"{% else %} aria-selected="false"{% endif %}>QR Çözümle</button>
         </li>
     </ul>
 
     <div class="tab-content">
-        <div class="tab-pane fade show active" id="generator" role="tabpanel">
+        <div class="tab-pane fade {% if active_tab != 'scanner' %}show active{% endif %}" id="generator" role="tabpanel">
             <form method="post" enctype="multipart/form-data" class="row g-4">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="generate">
@@ -140,12 +140,11 @@
 
                 <div class="col-12 d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3 pt-2 mt-1 app-divider">
                     <button class="app-button app-button--primary w-auto flex-shrink-0" type="submit">QR Üret</button>
-                    <span class="small-note">Logo ve yüksek hata toleransı için üretimde H seviyesinde hata düzeltme kullanılır.</span>
                 </div>
             </form>
         </div>
 
-        <div class="tab-pane fade" id="scanner" role="tabpanel">
+        <div class="tab-pane fade {% if active_tab == 'scanner' %}show active{% endif %}" id="scanner" role="tabpanel">
             <form method="post" enctype="multipart/form-data" class="row g-4">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="scan">
@@ -162,7 +161,7 @@
 </div>
 
 {% if generated or scan_result %}
-<div class="row g-4 mt-3">
+    <div class="row g-4 mt-3">
     <div class="col-12 col-lg-7">
         <div class="glass-card rounded-4 p-4 h-100">
             <h3 class="h5 mb-3">Sonuç</h3>
@@ -192,6 +191,19 @@
                 </div>
             {% endif %}
 
+            {% if decoded_type or used_filter %}
+                <div class="mb-4 small text-white">
+                    {% if decoded_type %}<div><strong>Tip:</strong> {{ decoded_type }}</div>{% endif %}
+                    {% if used_filter %}<div><strong>Kullanılan Filtre:</strong> {{ used_filter }}</div>{% endif %}
+                </div>
+            {% endif %}
+
+            {% if scan_error %}
+                <div class="alert alert-danger bg-transparent text-light border-danger">
+                    {{ scan_error }}
+                </div>
+            {% endif %}
+
             {% if payload %}
                 <div class="mb-4">
                     <label class="form-label muted">Üretilen Veri</label>
@@ -207,6 +219,7 @@
         </div>
     </div>
 
+    {% if active_tab != 'scanner' %}
     <div class="col-12 col-lg-5">
         <div class="glass-card rounded-4 p-4 h-100">
             <h3 class="h5 mb-3">Önizleme</h3>
@@ -221,6 +234,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 {% endif %}
 {% endblock %}

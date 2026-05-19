@@ -3,7 +3,7 @@ import io
 import ipaddress
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence, Tuple, cast
 from urllib.parse import quote, urlparse
 
 import cv2
@@ -128,8 +128,11 @@ def security_scan_url(url: str) -> SecurityResult:
     )
 
 
-def _interpolate_color(start: tuple[int, int, int], end: tuple[int, int, int], ratio: float) -> tuple[int, int, int]:
-    return tuple(int(start[i] + (end[i] - start[i]) * ratio) for i in range(3))
+def _interpolate_color(start: Sequence[int], end: Sequence[int], ratio: float) -> tuple[int, int, int]:
+    # Accept RGB or RGBA tuples; only interpolate RGB channels
+    s: tuple[int, int, int] = tuple(start[:3])  # type: ignore[arg-type]
+    e: tuple[int, int, int] = tuple(end[:3])  # type: ignore[arg-type]
+    return tuple(int(s[i] + (e[i] - s[i]) * ratio) for i in range(3))
 
 
 def _make_qr_matrix(payload: str):
@@ -153,8 +156,11 @@ def _render_png_or_gif(
     frame_count = 8 if animated else 1
     frames: list[Image.Image] = []
 
-    start_rgb = ImageColor.getrgb(primary_color)
-    end_rgb = ImageColor.getrgb(secondary_color)
+    start_rgb_full = ImageColor.getrgb(primary_color)
+    end_rgb_full = ImageColor.getrgb(secondary_color)
+    # Ensure we work with RGB triples (ImageColor may return RGB or RGBA)
+    start_rgb = tuple(start_rgb_full[:3])
+    end_rgb = tuple(end_rgb_full[:3])
     bg_rgba = (255, 255, 255, 0) if transparent_bg else (255, 255, 255, 255)
 
     logo_image = None
@@ -285,8 +291,12 @@ def _render_svg(qr_obj, primary_color: str, transparent_bg: bool, logo_file) -> 
 def _decode_qr_image(uploaded_file) -> str:
     image_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
     image = cv2.imdecode(image_bytes, cv2.IMREAD_COLOR)
+    if image is None:
+        return ""
+    # Help the type-checker: imdecode returns ndarray on success
+    image_array: np.ndarray = cast(np.ndarray, image)
     detector = cv2.QRCodeDetector()
-    decoded_text, _, _ = detector.detectAndDecode(image)
+    decoded_text, _, _ = detector.detectAndDecode(image_array)
     return decoded_text.strip()
 
 

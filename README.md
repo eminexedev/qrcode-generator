@@ -81,6 +81,3 @@ Katkıda Bulunma
 
 Lisans
 - Bu proje örnek amaçlıdır; lisans eklemek istiyorsanız `LICENSE` dosyası ekleyin.
-
-İletişim
-- Daha fazla yardım isterseniz proje sahibine mesaj atın veya issue açın.

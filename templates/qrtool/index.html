@@ -4,10 +4,10 @@
 <div class="glass-card rounded-4 p-4 p-lg-4">
     <ul class="nav nav-tabs mb-4" id="toolTabs" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#generator" type="button" role="tab">QR Üret</button>
+            <button class="nav-link app-button app-button--tab active" data-bs-toggle="tab" data-bs-target="#generator" type="button" role="tab">QR Üret</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#scanner" type="button" role="tab">QR Çözümle</button>
+            <button class="nav-link app-button app-button--tab" data-bs-toggle="tab" data-bs-target="#scanner" type="button" role="tab">QR Çözümle</button>
         </li>
     </ul>
 
@@ -27,7 +27,11 @@
                 </div>
                 <div class="col-12 col-lg-4">
                     <label class="form-label">Logo / İkon</label>
-                    {{ qr_form.logo }}
+                    <div class="file-picker">
+                        {{ qr_form.logo }}
+                        <label class="file-picker__button app-button app-button--file" for="{{ qr_form.logo.id_for_label }}">Dosya Seç</label>
+                        <span class="file-picker__name" id="logo-file-name">Dosya seçilmedi</span>
+                    </div>
                 </div>
 
                 <div class="col-12 field-group" data-field-group="url">
@@ -75,11 +79,51 @@
 
                 <div class="col-12 col-lg-3">
                     <label class="form-label">Ana Renk</label>
-                    {{ qr_form.primary_color }}
+                    <div class="color-control">
+                        {{ qr_form.primary_color }}
+                        <input
+                            type="text"
+                            id="primary-color-hex"
+                            class="form-control color-hex-input"
+                            value="{{ qr_form.primary_color.value|default:'#111111' }}"
+                            maxlength="7"
+                            data-color-target="{{ qr_form.primary_color.id_for_label }}"
+                            aria-label="Ana renk hex kodu"
+                        >
+                        <button
+                            type="button"
+                            class="app-button app-button--outline app-button--icon color-random-btn"
+                            data-color-target="{{ qr_form.primary_color.id_for_label }}"
+                            aria-label="Ana renk için rastgele renk ata"
+                            title="Rastgele renk"
+                        >
+                            ↻
+                        </button>
+                    </div>
                 </div>
                 <div class="col-12 col-lg-3" id="secondary-color-wrap">
                     <label class="form-label">İkinci Renk</label>
-                    {{ qr_form.secondary_color }}
+                    <div class="color-control">
+                        {{ qr_form.secondary_color }}
+                        <input
+                            type="text"
+                            id="secondary-color-hex"
+                            class="form-control color-hex-input"
+                            value="{{ qr_form.secondary_color.value|default:'#2563eb' }}"
+                            maxlength="7"
+                            data-color-target="{{ qr_form.secondary_color.id_for_label }}"
+                            aria-label="İkinci renk hex kodu"
+                        >
+                        <button
+                            type="button"
+                            class="app-button app-button--outline app-button--icon color-random-btn"
+                            data-color-target="{{ qr_form.secondary_color.id_for_label }}"
+                            aria-label="İkinci renk için rastgele renk ata"
+                            title="Rastgele renk"
+                        >
+                            ↻
+                        </button>
+                    </div>
                 </div>
                 <div class="col-12 col-lg-2 d-flex align-items-end">
                     <div class="form-check">
@@ -94,9 +138,9 @@
                     </div>
                 </div>
 
-                <div class="col-12 d-flex gap-2 flex-wrap">
-                    <button class="btn btn-success px-4" type="submit">QR Üret</button>
-                    <span class="small-note align-self-center">Logo ve yüksek hata toleransı için üretimde H seviyesinde hata düzeltme kullanılır.</span>
+                <div class="col-12 d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3 pt-2 mt-1 app-divider">
+                    <button class="app-button app-button--primary w-auto flex-shrink-0" type="submit">QR Üret</button>
+                    <span class="small-note">Logo ve yüksek hata toleransı için üretimde H seviyesinde hata düzeltme kullanılır.</span>
                 </div>
             </form>
         </div>
@@ -110,7 +154,7 @@
                     {{ scan_form.image }}
                 </div>
                 <div class="col-12 col-lg-4 d-flex align-items-end">
-                    <button class="btn btn-info px-4 text-dark fw-semibold" type="submit">QR Çözümle</button>
+                    <button class="app-button app-button--secondary" type="submit">QR Çözümle</button>
                 </div>
             </form>
         </div>
@@ -132,11 +176,11 @@
                 {% if security_result.reasons %}
                     <div class="alert alert-warning bg-transparent text-light border-warning">
                         <strong>Bulgu:</strong>
-                        <ul class="mb-0 mt-2">
+                        <div class="mb-0 mt-2 small d-grid gap-1">
                             {% for reason in security_result.reasons %}
-                                <li>{{ reason }}</li>
+                                <div>{{ reason }}</div>
                             {% endfor %}
-                        </ul>
+                        </div>
                     </div>
                 {% endif %}
             {% endif %}
@@ -144,20 +188,20 @@
             {% if decoded_text %}
                 <div class="mb-4">
                     <label class="form-label muted">Çözümlenen Metin</label>
-                    <textarea class="form-control" rows="6" readonly>{{ decoded_text }}</textarea>
+                    <textarea class="form-control" rows="6" readonly aria-label="Çözümlenen metin" placeholder="Çözümlenen metin">{{ decoded_text }}</textarea>
                 </div>
             {% endif %}
 
             {% if payload %}
                 <div class="mb-4">
                     <label class="form-label muted">Üretilen Veri</label>
-                    <textarea class="form-control" rows="6" readonly>{{ payload }}</textarea>
+                    <textarea class="form-control" rows="6" readonly aria-label="Üretilen veri" placeholder="Üretilen veri">{{ payload }}</textarea>
                 </div>
             {% endif %}
 
             {% if qr_data_uri %}
                 <div class="d-flex gap-2 flex-wrap">
-                    <a class="btn btn-outline-light" href="{{ qr_data_uri }}" download="{{ download_name }}">İndir</a>
+                    <a class="app-button app-button--outline" href="{{ qr_data_uri }}" download="{{ download_name }}">İndir</a>
                 </div>
             {% endif %}
         </div>

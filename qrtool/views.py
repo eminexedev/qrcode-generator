@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 import requests
 import segno
+import zxingcpp
 from PIL import Image, ImageColor, ImageDraw, ImageOps
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
@@ -142,6 +143,21 @@ def _interpolate_color(start: Sequence[int], end: Sequence[int], ratio: float) -
     return (int(s[0] + (e[0] - s[0]) * ratio), int(s[1] + (e[1] - s[1]) * ratio), int(s[2] + (e[2] - s[2]) * ratio))
 
 
+def _coerce_rgb_color(value: str, fallback: tuple[int, int, int]) -> tuple[int, int, int]:
+    try:
+        rgb = ImageColor.getrgb(value)
+        r = int(rgb[0]) if len(rgb) > 0 else fallback[0]
+        g = int(rgb[1]) if len(rgb) > 1 else fallback[1]
+        b = int(rgb[2]) if len(rgb) > 2 else fallback[2]
+        return (r, g, b)
+    except Exception:
+        return fallback
+
+
+def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+    return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+
+
 def _make_qr_matrix(payload: str):
     return segno.make(payload, error="h")
 
@@ -163,11 +179,8 @@ def _render_png_or_gif(
     frame_count = 8 if animated else 1
     frames: list[Image.Image] = []
 
-    start_rgb_full = ImageColor.getrgb(primary_color)
-    end_rgb_full = ImageColor.getrgb(secondary_color)
-    # Ensure we work with RGB triples (ImageColor may return RGB or RGBA)
-    start_rgb = tuple(start_rgb_full[:3])
-    end_rgb = tuple(end_rgb_full[:3])
+    start_rgb = _coerce_rgb_color(primary_color, (17, 17, 17))
+    end_rgb = _coerce_rgb_color(secondary_color, (37, 99, 235))
     bg_rgba = (255, 255, 255, 0) if transparent_bg else (255, 255, 255, 255)
 
     logo_image = None
@@ -279,32 +292,190 @@ def _inject_logo_into_svg(svg_text: str, logo_file, qr_size: int = 1000) -> str:
 
 
 def _render_svg(qr_obj, primary_color: str, transparent_bg: bool, logo_file) -> bytes:
-    output = io.StringIO()
+    dark_rgb = _coerce_rgb_color(primary_color, (17, 17, 17))
+    output = io.BytesIO()
     qr_obj.save(
         output,
         kind="svg",
         xmldecl=True,
         scale=12,
         border=4,
-        dark=primary_color,
+        dark=_rgb_to_hex(dark_rgb),
         light=None if transparent_bg else "#ffffff",
     )
-    svg_text = output.getvalue()
+    svg_text = output.getvalue().decode("utf-8")
     if logo_file:
         svg_text = _inject_logo_into_svg(svg_text, logo_file)
     return svg_text.encode("utf-8")
 
 
+def _svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
+    try:
+        import fitz
+
+        document = fitz.open(stream=svg_bytes, filetype="svg")
+        page = document.load_page(0)
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(4, 4), alpha=False)
+        return pixmap.tobytes("png")
+    except Exception:
+        pass
+
+        return b""
+
+
+def _segno_svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(svg_bytes)
+    width = int(float(root.attrib.get("width", "0")))
+    height = int(float(root.attrib.get("height", "0")))
+    if width <= 0 or height <= 0:
+        return b""
+
+    image = Image.new("RGBA", (width, height), (255, 255, 255, 255))
+    draw = ImageDraw.Draw(image)
+    drew_anything = False
+
+    def parse_number(value: str) -> float:
+        match = re.match(r"-?\d+(?:\.\d+)?", value)
+        return float(match.group(0)) if match else 0.0
+
+    def draw_segment(start_x: float, start_y: float, length: float, scale: float) -> None:
+        nonlocal drew_anything
+        x0 = int(round(start_x * scale))
+        y0 = int(round(start_y * scale))
+        x1 = int(round((start_x + length) * scale))
+        y1 = int(round((start_y + 1.0) * scale))
+        left = min(x0, x1)
+        right = max(x0, x1)
+        top = min(y0, y1)
+        bottom = max(y0, y1)
+        if right <= left or bottom <= top:
+            return
+        draw.rectangle([left, top, right, bottom], fill=(0, 0, 0, 255))
+        drew_anything = True
+
+    for element in root.iter():
+        if not element.tag.endswith("path"):
+            continue
+
+        path_data = element.attrib.get("d", "")
+        transform = element.attrib.get("transform", "")
+        scale_match = re.search(r"scale\(([-\d.]+)\)", transform)
+        scale = float(scale_match.group(1)) if scale_match else 1.0
+
+        tokens = re.findall(r"[MmHhVv]|-?\d+(?:\.\d+)?", path_data)
+        index = 0
+        current_x = 0.0
+        current_y = 0.0
+
+        while index < len(tokens):
+            token = tokens[index]
+            index += 1
+
+            if token == "M":
+                current_x = parse_number(tokens[index])
+                current_y = parse_number(tokens[index + 1])
+                index += 2
+                if current_y.is_integer() and current_y % 1 == 0 and current_y > 0:
+                    current_y -= 0.5
+                continue
+
+            if token == "m":
+                current_x += parse_number(tokens[index])
+                current_y += parse_number(tokens[index + 1])
+                index += 2
+                continue
+
+            if token == "h":
+                length = parse_number(tokens[index])
+                index += 1
+                draw_segment(current_x, current_y, length, scale)
+                current_x += length
+                continue
+
+            if token == "v":
+                current_y += parse_number(tokens[index])
+                index += 1
+
+    if not drew_anything:
+        return b""
+
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
 def _decode_qr_image(uploaded_file) -> str:
-    image_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
-    image = cv2.imdecode(image_bytes, cv2.IMREAD_COLOR)
-    if image is None:
-        return ""
-    # Help the type-checker: imdecode returns ndarray on success
-    image_array: np.ndarray = cast(np.ndarray, image)
+    raw_bytes = uploaded_file.read()
+
+    image_sources = [raw_bytes]
+    if uploaded_file.name.lower().endswith(".svg") or getattr(uploaded_file, "content_type", "") == "image/svg+xml":
+        fitz_png_bytes = _svg_bytes_to_png_bytes(raw_bytes)
+        if fitz_png_bytes:
+            image_sources.insert(0, fitz_png_bytes)
+
+        segno_png_bytes = _segno_svg_bytes_to_png_bytes(raw_bytes)
+        if segno_png_bytes:
+            image_sources.insert(0, segno_png_bytes)
+
     detector = cv2.QRCodeDetector()
-    decoded_text, _, _ = detector.detectAndDecode(image_array)
-    return decoded_text.strip()
+
+    def decode_image(image_array: np.ndarray) -> str:
+        candidates: list[np.ndarray] = [image_array]
+
+        if len(image_array.shape) == 3:
+            grayscale = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
+        else:
+            grayscale = image_array
+
+        candidates.append(grayscale)
+        candidates.append(cv2.equalizeHist(grayscale))
+        candidates.append(cv2.threshold(grayscale, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1])
+        candidates.append(cv2.threshold(grayscale, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1])
+
+        for candidate in list(candidates):
+            candidates.append(cv2.resize(candidate, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC))
+            candidates.append(cv2.resize(candidate, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC))
+
+        for candidate in candidates:
+            decoded_text, _, _ = detector.detectAndDecode(candidate)
+            decoded_text = decoded_text.strip()
+            if decoded_text:
+                return decoded_text
+
+            zxing_results = zxingcpp.read_barcodes(candidate)
+            for result in zxing_results:
+                if result.text:
+                    return result.text.strip()
+
+        for candidate in candidates:
+            inverted = cv2.bitwise_not(candidate)
+            decoded_text, _, _ = detector.detectAndDecode(inverted)
+            decoded_text = decoded_text.strip()
+            if decoded_text:
+                return decoded_text
+
+            zxing_results = zxingcpp.read_barcodes(inverted)
+            for result in zxing_results:
+                if result.text:
+                    return result.text.strip()
+
+        return ""
+
+    for source_bytes in image_sources:
+        image_bytes = np.frombuffer(source_bytes, np.uint8)
+        image = cv2.imdecode(image_bytes, cv2.IMREAD_COLOR)
+        if image is None:
+            continue
+
+        # Help the type-checker: imdecode returns ndarray on success
+        image_array: np.ndarray = cast(np.ndarray, image)
+        decoded_text = decode_image(image_array)
+        if decoded_text:
+            return decoded_text
+
+    return ""
 
 
 def _make_data_uri(binary: bytes, mime_type: str) -> str:

@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 import requests
 import segno
+import math
 from PIL import Image, ImageColor, ImageDraw, ImageOps
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
@@ -18,6 +19,7 @@ from pyzbar.pyzbar import decode as pyzbar_decode
 from .forms import QRBuildForm, QRScanForm
 
 
+# Örnek kara liste: gerçek projede harici tehdit istihbaratı ile genişletilmelidir.
 SUSPICIOUS_DOMAINS = {
     "paypa1.com",
     "secure-login.example",
@@ -47,12 +49,14 @@ class QRDecodeResult:
 
 
 def build_wifi_payload(ssid: str, password: str, encryption: str) -> str:
+    # Wi-Fi QR standardında özel karakterleri kaçışlayarak payload üretir.
     ssid_escaped = ssid.replace("\\", "\\\\").replace(";", r"\;").replace(",", r"\,")
     password_escaped = password.replace("\\", "\\\\").replace(";", r"\;").replace(",", r"\,")
     return f"WIFI:T:{encryption};S:{ssid_escaped};P:{password_escaped};;"
 
 
 def build_vcard_payload(data: dict[str, str]) -> str:
+    # VCard 3.0 formatında satır tabanlı içerik oluşturur.
     lines = [
         "BEGIN:VCARD",
         "VERSION:3.0",
@@ -74,6 +78,7 @@ def build_vcard_payload(data: dict[str, str]) -> str:
 
 
 def build_crypto_payload(wallet_type: str, address: str, label: str, amount: str) -> str:
+    # IBAN için sade format, kripto için query parametreli şema kullanılır.
     if wallet_type == "iban":
         iban = re.sub(r"\s+", "", address.upper())
         return f"IBAN:{iban}"
@@ -93,6 +98,7 @@ def is_http_url(value: str) -> bool:
 
 
 def security_scan_url(url: str) -> SecurityResult:
+    # Temel güvenlik kuralları ile URL üzerinde hızlı risk analizi yapar.
     reasons: list[str] = []
     parsed = urlparse(url)
     hostname = (parsed.hostname or "").lower()
@@ -166,6 +172,7 @@ def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
 
 
 def _make_qr_matrix(payload: str):
+    # Segno ile yüksek hata düzeltmeli QR matrisini üretir.
     return segno.make(payload, error="h")
 
 
@@ -178,12 +185,13 @@ def _render_png_or_gif(
     logo_file,
     animated: bool,
 ) -> bytes:
+    # PNG/GIF çıktısını piksel bazlı çizimle üretir; gradient ve logo desteği içerir.
     scale = 14
     border = 4
     modules = qr_obj.matrix
     size = len(modules)
     total = (size + border * 2) * scale
-    frame_count = 8 if animated else 1
+    frame_count = 12 if animated else 1
     frames: list[Image.Image] = []
 
     start_rgb = _coerce_rgb_color(primary_color, (17, 17, 17))
@@ -212,8 +220,14 @@ def _render_png_or_gif(
                     gradient_ratio = (row_index + frame_index * 0.2) / max(size - 1, 1)
                     fill_rgb = _interpolate_color(start_rgb, end_rgb, gradient_ratio)
                 else:
-                    pulse = 20 if animated else 0
-                    offset = int((frame_index % frame_count) * pulse / max(frame_count - 1, 1)) if animated else 0
+                    pulse = 28 if animated else 0
+                    # Daha yumuşak bir hareket için kosinüs tabanlı easing kullanıyoruz
+                    if animated and frame_count > 1:
+                        t = frame_index / frame_count
+                        ease = (1 - math.cos(t * math.pi * 2)) / 2
+                        offset = int(ease * pulse)
+                    else:
+                        offset = 0
                     fill_rgb = tuple(max(0, min(255, component - offset)) for component in start_rgb)
 
                 draw.rectangle([x1, y1, x2, y2], fill=fill_rgb + (255,))
@@ -238,9 +252,9 @@ def _render_png_or_gif(
             format="GIF",
             save_all=True,
             append_images=frames[1:],
-            duration=120,
+            duration=100,
             loop=0,
-            optimize=False,
+            optimize=True,
             disposal=2,
         )
     else:
@@ -250,6 +264,7 @@ def _render_png_or_gif(
 
 
 def _inject_logo_into_svg(svg_text: str, logo_file, qr_size: int = 1000) -> str:
+    # SVG içine gömülü (base64) logo ekler.
     if not logo_file:
         return svg_text
 
@@ -299,6 +314,7 @@ def _inject_logo_into_svg(svg_text: str, logo_file, qr_size: int = 1000) -> str:
 
 
 def _render_svg(qr_obj, primary_color: str, transparent_bg: bool, logo_file) -> bytes:
+    # SVG formatında vektörel çıktı üretir.
     dark_rgb = _coerce_rgb_color(primary_color, (17, 17, 17))
     output = io.BytesIO()
     qr_obj.save(
@@ -317,6 +333,7 @@ def _render_svg(qr_obj, primary_color: str, transparent_bg: bool, logo_file) -> 
 
 
 def _svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
+    # PyMuPDF ile SVG'den PNG'ye dönüştürme denemesi.
     try:
         import fitz
 
@@ -331,6 +348,7 @@ def _svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
 
 
 def _segno_svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
+    # Segno path verisini basitçe rasterize ederek PNG elde etmeye çalışır.
     import xml.etree.ElementTree as ET
 
     root = ET.fromstring(svg_bytes)
@@ -479,11 +497,13 @@ def _decode_qr_image(uploaded_file) -> QRDecodeResult | None:
 
 
 def _make_data_uri(binary: bytes, mime_type: str) -> str:
+    # Görsel baytlarını HTML'de kullanılabilir data URI biçimine çevirir.
     encoded = base64.b64encode(binary).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
 
 
 def index(request: HttpRequest) -> HttpResponse:
+    # Hem üretim hem çözümleme işlemlerini yöneten ana view.
     qr_form = QRBuildForm(request.POST or None, request.FILES or None)
     scan_form = QRScanForm(request.POST or None, request.FILES or None)
 
@@ -504,6 +524,7 @@ def index(request: HttpRequest) -> HttpResponse:
         action = request.POST.get("action")
 
         if action == "generate" and qr_form.is_valid():
+            # Kullanıcı seçimine göre QR payload'ı hazırlanır.
             data_type = qr_form.cleaned_data["data_type"]
             output_format = qr_form.cleaned_data["output_format"]
             payload = ""
@@ -550,6 +571,7 @@ def index(request: HttpRequest) -> HttpResponse:
             qr_svg = None
 
             if output_format == "svg":
+                # SVG çıktı ayrıca ham metin olarak önizlemeye gönderilir.
                 rendered = _render_svg(
                     qr_obj,
                     qr_form.cleaned_data["primary_color"],

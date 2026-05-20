@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="tr">
 <head>
+    <!-- Temel sayfa iskeleti: ortak stil ve script tanımları burada tutulur. -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Gelişmiş QR Kod Oluşturucu</title>
@@ -366,6 +367,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function toggleFields() {
+            // Seçilen veri tipine göre ilgili form alanlarını görünür yapar.
             const type = document.getElementById('id_data_type')?.value;
             const wifi = document.querySelectorAll('[data-field-group="wifi"]');
             const vcard = document.querySelectorAll('[data-field-group="vcard"]');
@@ -381,6 +383,7 @@
         }
 
         function toggleGradientFields() {
+            // Gradient kapalıysa ikinci renk alanını gizler.
             const enabled = document.getElementById('id_use_gradient')?.checked;
             const secondary = document.getElementById('secondary-color-wrap');
             if (secondary) {
@@ -389,6 +392,7 @@
         }
 
         function normalizeHexColor(value) {
+            // Hex renk değeri geçerliyse standart formata (#rrggbb) dönüştürür.
             const trimmed = (value || '').trim();
             const prefixed = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
             return /^#[0-9a-fA-F]{6}$/.test(prefixed) ? prefixed.toLowerCase() : null;
@@ -400,6 +404,7 @@
         }
 
         function initColorControls() {
+            // Renk seçici inputları ile hex text inputlarını çift yönlü senkronlar.
             document.querySelectorAll('.color-hex-input').forEach((hexInput) => {
                 const targetId = hexInput.dataset.colorTarget;
                 if (!targetId) {
@@ -458,6 +463,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Sayfa açıldığında tüm etkileşimli bileşenleri başlatır.
             const dataType = document.getElementById('id_data_type');
             const gradient = document.getElementById('id_use_gradient');
             if (dataType) dataType.addEventListener('change', toggleFields);

@@ -38,31 +38,42 @@ Bu uygulama, farklı veri türleri için QR üretimini kolaylaştırırken güve
 
 ```powershell
 python -m venv .venv
-
-Bu depo, Django ile hazırlanmış bir "QR üretme ve çözümleme" uygulamasıdır. Ek olarak basit bir URL güvenlik kontrolü (heuristic) içerir.
-
-Öne çıkan özellikler:
-- URL, Wi-Fi, VCard ve Kripto/IBAN formatlarında QR üretimi.
-- PNG, SVG ve GIF (basit animasyon) çıktıları.
-- Logo/ikon bindirme, renk ve şeffaf arka plan desteği.
-- Görsellerden QR okuma ve çözümleme (pyzbar + OpenCV).
-
-Hızlı kurulum (Windows):
-
-```powershell
-python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 .\.venv\Scripts\python.exe manage.py migrate
-.\.venv\Scripts\python.exe manage.py runserver
+.\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
 ```
 
-Tarayıcıda `http://127.0.0.1:8000` adresini açın.
+Tarayıcı: `http://127.0.0.1:8000`
 
-Dosya yapısı:
-- `qrtool/` — Uygulama mantığı (`views.py`, `forms.py`, `urls.py`).
-- `templates/qrtool/` — HTML şablonları (`base.html`, `index.html`).
-- `qrcode_project/` — Django proje ayarları.
+## Dosya Bazlı Detaylı Açıklama (Sunum İçin)
 
+### `manage.py`
 
+1. Django komutlarının giriş noktasıdır.
+2. `DJANGO_SETTINGS_MODULE` değişkenini ayarlayıp komutları çalıştırır.
+3. `runserver`, `migrate`, `createsuperuser` gibi komutlar buradan tetiklenir.
 
+### `qrcode_project/settings.py`
+
+1. Projenin merkezi yapılandırma dosyasıdır.
+2. Uygulama listesi (`INSTALLED_APPS`) içinde `qrtool` etkinleştirilmiştir.
+3. Template klasörü, veritabanı, dil/saat dilimi ve static ayarları burada tanımlanır.
+
+### `qrtool/views.py`
+
+Bu proje mantığının çekirdeğidir.
+
+1. Payload üretim fonksiyonları: `build_wifi_payload`, `build_vcard_payload`, `build_crypto_payload`.
+1. Güvenlik analiz fonksiyonu: `security_scan_url` (regex, kara liste, redirect ve alan adı kalıpları).
+1. QR üretim fonksiyonları: `_make_qr_matrix`, `_render_png_or_gif`, `_render_svg`, `_inject_logo_into_svg`.
+1. Çözümleme fonksiyonları: `_decode_qr_image` ve SVG raster dönüştürme yardımcıları.
+1. Ana akış fonksiyonu: `index` (generate ve scan işlemlerini yürütür, sonucu context ile template'e taşır).
+
+## Güvenlik Tarama Mekanizması (Kısa)
+
+Uygulama URL verisinde temel pattern ve redirect kontrolleri yapar. Bu kontrol üretim seviyesinde olmayan, demo amaçlı bir heuristik katmanıdır.
+
+## Sunum Notu
+
+Sunum sırasında demo adımlarını kısa ve net tutun: üret, önizle, indir; çözümle, güvenlik sonucunu göster.

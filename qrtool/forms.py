@@ -2,6 +2,7 @@ from django import forms
 
 
 class QRBuildForm(forms.Form):
+    # Kullanıcının üretmek istediği QR veri türleri.
     DATA_TYPE_CHOICES = [
         ("url", "Standart URL"),
         ("wifi", "Wi-Fi"),
@@ -21,6 +22,7 @@ class QRBuildForm(forms.Form):
         ("nopass", "Şifresiz"),
     ]
 
+    # QR oluşturmak için gerekli tüm veri türlerini tek bir formda toplama
     data_type = forms.ChoiceField(label="Veri Türü", choices=DATA_TYPE_CHOICES)
     output_format = forms.ChoiceField(label="Çıktı Formatı", choices=OUTPUT_FORMAT_CHOICES, initial="png")
 
@@ -38,6 +40,7 @@ class QRBuildForm(forms.Form):
     vcard_title = forms.CharField(label="Unvan", required=False)
     vcard_website = forms.URLField(label="Web Sitesi", required=False)
 
+    # Kripto para adresi veya IBAN bilgisi için gerekli alanlar.
     crypto_type = forms.ChoiceField(
         label="Cüzdan Türü",
         choices=[("crypto", "Kripto Adresi"), ("iban", "IBAN")],
@@ -56,6 +59,7 @@ class QRBuildForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        # Arayüz tutarlılığı için alan bazlı CSS sınıf eşleşmeleri.
         field_classes = {
             "data_type": "form-select",
             "output_format": "form-select",
@@ -81,11 +85,13 @@ class QRBuildForm(forms.Form):
             "logo": "file-picker__input",
         }
 
+        # Her alan için tanımlanan CSS sınıfları widget'lara eklenir.
         for field_name, css_class in field_classes.items():
             widget = self.fields[field_name].widget
             existing_class = widget.attrs.get("class", "")
             widget.attrs["class"] = f"{existing_class} {css_class}".strip()
 
+        # Kullanıcı deneyimini iyileştiren örnek metin ve input özellikleri.
         self.fields["url"].widget.attrs.update({"placeholder": "https://example.com"})
         self.fields["wifi_ssid"].widget.attrs.update({"placeholder": "SSID"})
         self.fields["wifi_password"].widget.attrs.update({"placeholder": "Wi-Fi şifresi"})
@@ -98,6 +104,7 @@ class QRBuildForm(forms.Form):
 
 
 class QRScanForm(forms.Form):
+    # QR çözümleme için kullanıcıdan görsel dosyası alınır.
     image = forms.FileField(label="QR Görseli")
 
     def __init__(self, *args, **kwargs):

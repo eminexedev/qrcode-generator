@@ -56,6 +56,7 @@ class QRBuildForm(forms.Form):
     transparent_bg = forms.BooleanField(label="Şeffaf arka plan", required=False)
     logo = forms.ImageField(label="Logo / İkon", required=False)
 
+# Formun her alanına uygun CSS sınıflarını ekleyerek Bootstrap ile uyumlu hale getirir ve kullanıcı deneyimini iyileştirir.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

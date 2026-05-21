@@ -15,7 +15,7 @@
 
     <div class="tab-content">
         <div class="tab-pane fade {% if active_tab != 'scanner' %}show active{% endif %}" id="generator" role="tabpanel">
-            <form method="post" enctype="multipart/form-data" class="row g-4">
+            <form method="post" enctype="multipart/form-data" class="row g-4" data-loader-form="generate">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="generate">
 

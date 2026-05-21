@@ -262,7 +262,7 @@ def _render_png_or_gif(
 
     return output.getvalue()
 
-
+# SVG çıktısına logo eklemek için XML manipülasyonu yapar; logo dosyasını base64 ile gömülü hale getirir.
 def _inject_logo_into_svg(svg_text: str, logo_file, qr_size: int = 1000) -> str:
     # SVG içine gömülü (base64) logo ekler.
     if not logo_file:
@@ -335,7 +335,9 @@ def _render_svg(qr_obj, primary_color: str, transparent_bg: bool, logo_file) -> 
 def _svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
     # PyMuPDF ile SVG'den PNG'ye dönüştürme denemesi.
     try:
-        import fitz
+        import importlib
+
+        fitz = cast(Any, importlib.import_module("fitz"))
 
         document = fitz.open(stream=svg_bytes, filetype="svg")
         page = document.load_page(0)
@@ -480,7 +482,8 @@ def _decode_qr_image(uploaded_file) -> QRDecodeResult | None:
                 )
 
         return None
-
+    
+# Birden fazla görsel kaynağı varsa sırayla dene; her kaynak için farklı ön işleme filtreleri uygula ve pyzbar ile çözümlemeyi dene.
     for source_bytes in image_sources:
         image_bytes = np.frombuffer(source_bytes, np.uint8)
         image = cv2.imdecode(image_bytes, cv2.IMREAD_COLOR)
@@ -495,13 +498,13 @@ def _decode_qr_image(uploaded_file) -> QRDecodeResult | None:
 
     return None
 
-
+# Görsel baytlarını HTML'de kullanılabilir data URI biçimine çevirir.
 def _make_data_uri(binary: bytes, mime_type: str) -> str:
     # Görsel baytlarını HTML'de kullanılabilir data URI biçimine çevirir.
     encoded = base64.b64encode(binary).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
 
-
+# Ana view: hem QR kod üretimi hem de görsel tabanlı çözümleme işlemlerini yönetir.
 def index(request: HttpRequest) -> HttpResponse:
     # Hem üretim hem çözümleme işlemlerini yöneten ana view.
     qr_form = QRBuildForm(request.POST or None, request.FILES or None)
@@ -520,6 +523,7 @@ def index(request: HttpRequest) -> HttpResponse:
         "decoded_text": None,
     }
 
+# POST isteği geldiğinde hangi işlemin yapılacağını belirlemek için gizli "action" alanını kontrol eder.
     if request.method == "POST":
         action = request.POST.get("action")
 
@@ -607,6 +611,8 @@ def index(request: HttpRequest) -> HttpResponse:
                     "payload": payload,
                 }
             )
+            # Formu temizleyerek yeni bir QR oluşturma deneyimi sunar.
+            context["qr_form"] = QRBuildForm()
 
         elif action == "scan":
             # Yeni anahtar adı olan qr_image'i önce dene; eski form alanı image ile geriye dönük uyumluluk sağla.

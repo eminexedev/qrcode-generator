@@ -197,14 +197,57 @@ Sonuç olarak:
 
 ## 11) Kütüphaneleri Neden Kullandın?
 
-1. Django: Form + routing + template + hızlı backend geliştirme.
-2. Segno: Stabil QR matris üretimi.
-3. Pillow: Görsel çizim, logo bindirme ve çıktı işleme.
-4. OpenCV: Görsel ön işleme.
-5. NumPy: Matris dönüşümleri.
-6. pyzbar: QR decode.
-7. requests: URL HEAD kontrolü.
-8. Bootstrap: Hızlı ve responsive arayüz.
+Aşağıda proje gereksinlerinde listelenen ana paketler için kısa ve net açıklamalar; her biri için "neden kullandık?", "nerede kullandık?" ve "hangi dosya / fonksiyon" bilgisi verilmiştir.
+
+- **Django**
+   - Neden: Web uygulaması iskeleti, form işleme, template renderer, routing ve kolay geliştirme için.
+   - Nerede: Tüm HTTP akışı, formlar ve view orchestration.
+   - Hangi dosya/fonksiyon: `manage.py` (başlatma), `qrcode_project/settings.py` (ayarlar), `qrtool/views.py::index()` (istek orkestrasyonu), `qrtool/forms.py` (form tanımları).
+
+- **segno**
+   - Neden: Güvenilir QR matris (model) üretimi ve SVG/bitmap kaydetme yetenekleri için.
+   - Nerede: QR matrisi oluşturma ve bazı SVG dönüşümlerinde yedek mekanizma olarak.
+   - Hangi dosya/fonksiyon: `qr_code.py` (örnek kullanım: `segno.make()`), `qrtool/renderers.py::_make_qr_matrix()` (içinde `segno.make()` çağrısı) ve `_render_svg()` (QR objesinin SVG olarak kaydı).
+
+- **Pillow (PIL)**
+   - Neden: Raster görüntü oluşturma, çizim, logo bindirme ve PNG/GIF kaydetme işlemleri için.
+   - Nerede: PNG/GIF frame üretimi, logo ölçeklendirme, renk/alpha işlemleri.
+   - Hangi dosya/fonksiyon: `qrtool/renderers.py` — `from PIL import Image, ImageColor, ImageDraw, ImageOps`; özellikle `_render_png_or_gif()` ve `_segno_svg_bytes_to_png_bytes()` fonksiyonları.
+
+- **opencv-python (cv2)**
+   - Neden: Görsel ön işleme (gri tonlama, eşikleme, imdecode) ve farklı filtrelerle decode başarısını artırmak için.
+   - Nerede: Yüklenen görsellerin belleğe alınması, renk dönüşümü ve thresholding.
+   - Hangi dosya/fonksiyon: `qrtool/decoders.py` — `_decode_qr_image()` içinde `cv2.imdecode`, `cv2.cvtColor`, `cv2.threshold` kullanımı.
+
+- **NumPy**
+   - Neden: Byte dizilerini OpenCV ile uyumlu ndarray'lara çevirmek ve sayısal veri tipleriyle çalışmak için.
+   - Nerede: Görsel byte buffer → `np.ndarray` dönüşümü.
+   - Hangi dosya/fonksiyon: `qrtool/decoders.py` — `np.frombuffer(source_bytes, np.uint8)`.
+
+- **pyzbar**
+   - Neden: ZBar tabanlı QR/barcode çözümleme; kolay kullanımlı decode API'si sağlar.
+   - Nerede: Ön işlem sonrası barcode/QR algılama ve çözümleme.
+   - Hangi dosya/fonksiyon: `qrtool/decoders.py` — `from pyzbar.pyzbar import decode as pyzbar_decode`; `decode_with_pyzbar()` fonksiyonu çözümlenmiş `item.data` ve `item.type` ile çalışır.
+
+- **requests**
+   - Neden: Harici URL'lerin HEAD isteğiyle yönlendirme ve Location başlığı kontrolü yapmak için (güvenlik taraması).
+   - Nerede: URL güvenlik katmanında harici istek yapılırken.
+   - Hangi dosya/fonksiyon: `qrtool/security.py::security_scan_url()` — `requests.head(url, allow_redirects=False, timeout=3)`.
+
+- **qrcode (qrcode[pil])**
+   - Neden: Alternatif QR üretim kütüphanesi olarak requirements'te listelenmiş olabilir (Pillow entegrasyonu). Ancak proje kodunda doğrudan `import qrcode` veya kullanımı bulunmamaktadır.
+   - Nerede: (şu an kullanılmıyor — requirements'te opsiyonel/legacy olarak duruyor).
+
+- **PyMuPDF (`fitz`)**
+   - Neden: SVG içeriklerini rasterize edip PNG byte'ı üretmek için (bazı SVG yüklemelerinde alternatif dönüşüm sağlar).
+   - Nerede: SVG → PNG dönüşümü denemelerinde, yüklü ise daha kaliteli raster üretir.
+   - Hangi dosya/fonksiyon: `qrtool/renderers.py::_svg_bytes_to_png_bytes()` içinde dinamik olarak `importlib.import_module("fitz")` ile kullanılır; hata durumunda sessizce atlanır.
+
+- **zxing-cpp**
+   - Neden: Başka bir alternatif decoder/kitaplık; requirements'te listelenmiş olabilir.
+   - Nerede: Proje kaynak kodunda doğrudan bir import veya kullanım bulunmuyor — opsiyonel/alternatif.
+
+Not: `fitz` (PyMuPDF) ve `qrcode`/`zxing-cpp` gibi paketler requirements'te yer alsa da kodda dinamik veya hiç kullanılmama durumları var. Bu paketler opsiyonel araçlar/alternatifler olarak listelenmiş olabilir; temizleme (unused dependency kaldırma) veya gerçek kullanım eklenmesi mantıklı olabilir.
 
 ## 12) Demo Senaryosu (Dakika Dakika)
 

@@ -107,6 +107,8 @@ def _render_png_or_gif(
         else:
             frames.append(image)
 
+# Her kare için QR kodunu çizerek animasyonlu GIF oluşturma veya 
+# tek kareli PNG oluşturma: Logonun boyutunu QR kodunun %22'si kadar yaparak ortalayarak yerleştirir ve her karede renklerde hafif bir animasyon efekti uygular.
     output = io.BytesIO()
     if animated:
         frames[0].save(
@@ -212,6 +214,8 @@ def _svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
     return b""
 
 
+# Her kare için QR kodunu çizerek animasyonlu GIF oluşturma veya tek kareli PNG oluşturma: 
+# Logonun boyutunu QR kodunun %22'si kadar yaparak ortalayarak yerleştirir ve her karede renklerde hafif bir animasyon efekti uygular.
 def _segno_svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
     import xml.etree.ElementTree as ET
 
@@ -229,6 +233,8 @@ def _segno_svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
         match = re.match(r"-?\d+(?:\.\d+)?", value)
         return float(match.group(0)) if match else 0.0
 
+# SVG içindeki QR koduna logo ekleme işlemi: 
+# SVG'yi XML olarak işleyerek logo görselini base64 formatında ekler ve logonun boyutunu QR kodunun %22'si kadar yaparak ortalayarak yerleştirir.
     def draw_segment(start_x: float, start_y: float, length: float, scale: float) -> None:
         nonlocal drew_anything
         x0 = int(round(start_x * scale))
@@ -244,6 +250,8 @@ def _segno_svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
         draw.rectangle([left, top, right, bottom], fill=(0, 0, 0, 255))
         drew_anything = True
 
+# SVG içindeki QR koduna logo ekleme işlemi: 
+# SVG'yi XML olarak işleyerek logo görselini base64 formatında ekler ve logonun boyutunu QR kodunun %22'si kadar yaparak ortalayarak yerleştirir.
     for element in root.iter():
         if not element.tag.endswith("path"):
             continue
@@ -295,6 +303,8 @@ def _segno_svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
     return output.getvalue()
 
 
+# Verilen payloada göre QR kodu matrisi oluşturma: 
+# segno kütüphanesi kullanarak QR kodu matrisi oluşturur ve hata düzeltme seviyesini "h" olarak ayarlar.
 def _make_data_uri(binary: bytes, mime_type: str) -> str:
     encoded = base64.b64encode(binary).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"

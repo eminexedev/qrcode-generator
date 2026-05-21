@@ -23,10 +23,10 @@ Bu uygulama, farklı veri türleri için QR üretimini kolaylaştırırken güve
 
 1. Django: web çatısı ve istek/yanıt yönetimi.
 2. Segno: yüksek kaliteli QR üretimi.
-3. Pillow: görsel birleştirme, logo bindirme ve raster işlemleri.
-4. OpenCV + NumPy: görsel ön işleme.
-5. pyzbar: barkod/QR çözümleme.
-6. Bootstrap 5: responsive ve modern arayüz.
+3. Pillow: görsel birleştirme, logo ekleme ve raster (PNG/GIF) işlemleri.
+4. OpenCV + NumPy: görsel işleme.
+5. pyzbar: barkod/QR çözme.
+6. Bootstrap 5: responsive ve modern arayüz oluşturma.
 
 ## Kurulum (Windows)
 

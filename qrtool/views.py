@@ -96,13 +96,14 @@ def is_http_url(value: str) -> bool:
     parsed = urlparse(value)
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
-
+# Temel güvenlik kuralları ile URL üzerinde hızlı risk analizi yapar.
 def security_scan_url(url: str) -> SecurityResult:
     # Temel güvenlik kuralları ile URL üzerinde hızlı risk analizi yapar.
     reasons: list[str] = []
     parsed = urlparse(url)
     hostname = (parsed.hostname or "").lower()
 
+# Şüpheli kalıplar, karakterler veya kelimeler içerip içermediğini kontrol eder.
     if PHISHING_PATTERN.search(url):
         reasons.append("Şüpheli kelime veya karakter kalıbı bulundu.")
 
@@ -141,10 +142,9 @@ def security_scan_url(url: str) -> SecurityResult:
         final_url=url,
     )
 
-
+# QR çözümleme için dosya yüklemesi yapıldığında,
+# farklı ön işleme teknikleri uygulayarak pyzbar ile çözümlemeyi dener.
 def _interpolate_color(start: Sequence[int], end: Sequence[int], ratio: float) -> tuple[int, int, int]:
-    # Accept RGB or RGBA tuples/sequences; only interpolate RGB channels.
-    # Build explicit 3-tuples so the type-checker knows the fixed length.
     s0 = int(start[0]) if len(start) > 0 else 0
     s1 = int(start[1]) if len(start) > 1 else 0
     s2 = int(start[2]) if len(start) > 2 else 0
@@ -155,7 +155,7 @@ def _interpolate_color(start: Sequence[int], end: Sequence[int], ratio: float) -
     e: tuple[int, int, int] = (e0, e1, e2)
     return (int(s[0] + (e[0] - s[0]) * ratio), int(s[1] + (e[1] - s[1]) * ratio), int(s[2] + (e[2] - s[2]) * ratio))
 
-
+# RGB renk değerlerini çeşitli formatlardan (hex, renk isimleri vb.) kabul ederek tutarlı bir şekilde işleyebilmek için yardımcı fonksiyonlar sağlar.
 def _coerce_rgb_color(value: str, fallback: tuple[int, int, int]) -> tuple[int, int, int]:
     try:
         rgb = ImageColor.getrgb(value)
@@ -175,7 +175,7 @@ def _make_qr_matrix(payload: str):
     # Segno ile yüksek hata düzeltmeli QR matrisini üretir.
     return segno.make(payload, error="h")
 
-
+# PNG/GIF çıktısını piksel bazlı çizimle üretir; gradient ve logo desteği içerir.
 def _render_png_or_gif(
     qr_obj,
     primary_color: str,
@@ -202,6 +202,8 @@ def _render_png_or_gif(
     if logo_file:
         logo_image = Image.open(logo_file).convert("RGBA")
 
+# Animasyonlu GIF için her karede modüllerin rengini hafifçe değiştirerek hareket efekti yaratır; 
+# gradient seçeneği varsa renkler arasında geçiş yapar.
     for frame_index in range(frame_count):
         image = Image.new("RGBA", (total, total), bg_rgba)
         draw = ImageDraw.Draw(image)
@@ -245,6 +247,8 @@ def _render_png_or_gif(
         else:
             frames.append(image)
 
+# PIL'in optimize edilmiş GIF kaydetme yeteneklerini kullanarak animasyonlu GIF'i oluşturur; 
+# tek kareli PNG için doğrudan kaydeder.
     output = io.BytesIO()
     if animated:
         frames[0].save(
@@ -262,7 +266,8 @@ def _render_png_or_gif(
 
     return output.getvalue()
 
-# SVG çıktısına logo eklemek için XML manipülasyonu yapar; logo dosyasını base64 ile gömülü hale getirir.
+# SVG çıktısına logo eklemek için XML manipülasyonu yapar; 
+# logo dosyasını base64 ile gömülü hale getirir.
 def _inject_logo_into_svg(svg_text: str, logo_file, qr_size: int = 1000) -> str:
     # SVG içine gömülü (base64) logo ekler.
     if not logo_file:
@@ -312,9 +317,8 @@ def _inject_logo_into_svg(svg_text: str, logo_file, qr_size: int = 1000) -> str:
     root.append(image)
     return ET.tostring(root, encoding="unicode")
 
-
+# SVG formatında vektörel çıktı üretir.
 def _render_svg(qr_obj, primary_color: str, transparent_bg: bool, logo_file) -> bytes:
-    # SVG formatında vektörel çıktı üretir.
     dark_rgb = _coerce_rgb_color(primary_color, (17, 17, 17))
     output = io.BytesIO()
     qr_obj.save(
@@ -331,9 +335,8 @@ def _render_svg(qr_obj, primary_color: str, transparent_bg: bool, logo_file) -> 
         svg_text = _inject_logo_into_svg(svg_text, logo_file)
     return svg_text.encode("utf-8")
 
-
+# hem QR kod üretimi hem de görsel tabanlı çözümleme işlemlerini yönetir.
 def _svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
-    # PyMuPDF ile SVG'den PNG'ye dönüştürme denemesi.
     try:
         import importlib
 
@@ -348,9 +351,8 @@ def _svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
 
         return b""
 
-
+# Segno'nun SVG çıktısındaki path verisini basitçe rasterize ederek PNG elde etmeye çalışır;
 def _segno_svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
-    # Segno path verisini basitçe rasterize ederek PNG elde etmeye çalışır.
     import xml.etree.ElementTree as ET
 
     root = ET.fromstring(svg_bytes)

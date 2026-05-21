@@ -33,7 +33,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "qrcode_project.urls"
 
-# Şablon (template) motoru ve global şablon klasörü ayarları.
+# Şablon ve global şablon klasörü ayarları.
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",

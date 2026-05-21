@@ -478,3 +478,121 @@ Sunum cümlesi: "Ön yüzü HTML, CSS ve JavaScript ile kurdum; form görünüm�
 2. "Kodda şu fonksiyonda kullanılıyor."
 3. "Alternatif vardı ama bu çözüm hem daha sade hem de proje ihtiyacına daha uygundu."
 4. "Bu kütüphane işin şu parçasını çözüyor: üretim, çözümleme, görsel işleme veya güvenlik kontrolü."
+
+## Güvenlik Tarama Mekanizması Nasıl Çalışıyor?
+
+Bu projedeki güvenlik taraması, tam kapsamlı bir antivirüs ya da kurumsal güvenlik motoru değil. Bunun yerine URL içinde şüpheli işaretleri yakalayan hafif bir heuristik kontrol katmanı kullanılıyor. Amaç, kullanıcıya "bu link riskli olabilir" demek ve temel phishing belirtilerini görünür hale getirmek.
+
+### Mantığın Genel Akışı
+
+1. Kullanıcı URL içeren bir QR üretirse veya QR çözümlerse, elde edilen metin önce URL mi diye kontrol ediliyor.
+2. Eğer veri gerçekten http ya da https ile başlıyorsa güvenlik taraması devreye giriyor.
+3. URL çeşitli kurallardan geçiriliyor: şüpheli kelime kalıpları, @ işareti, punycode, kara liste, IP kullanımı, çok sayıda alt alan adı ve redirect denemesi.
+4. Kurallardan herhangi biri eşleşirse nedenler bir listede toplanıyor.
+5. Sonuçta Güvenli ya da Şüpheli Link etiketi oluşturuluyor ve ekranda kullanıcıya gösteriliyor.
+
+### Kodda Kullanılan Temel Parçalar
+
+#### `PHISHING_PATTERN`
+
+Bu düzenli ifade, URL içinde phishing izlenimi verebilecek parçaları arıyor.
+
+Kontrol ettiği şeyler:
+
+1. `@` karakteri
+2. `xn--` gibi punycode/homografik alan adı işaretleri
+3. URL encoding ile gizlenmiş karakterler
+4. `login`, `verify`, `update`, `secure`, `account` gibi şüpheli kelimeler
+
+Bu mantık, kötü niyetli linklerin sık kullandığı kelime ve karakter izlerini erken yakalamak için kullanılıyor.
+
+#### `SUSPICIOUS_DOMAINS`
+
+Bu yapı örnek bir kara liste kümesi olarak tanımlanmış. İçinde `paypa1.com` gibi bilerek şüpheli görünen alan adları var.
+
+Bu neden önemli?
+
+1. Bazı domainler görünüşte güvenilir gibi dursa da karakter hilesi içerebilir.
+2. Kara liste mantığı, belirli örnek alan adlarını doğrudan işaretlemek için kullanılır.
+3. Bu proje demo olduğu için kara liste örnek veri ile sınırlı tutulmuş.
+
+#### `SecurityResult`
+
+Bu dataclass, tarama sonucunu tek yapıda topluyor.
+
+Alanları:
+
+1. `safe`: sonuç güvenli mi değil mi
+2. `status_label`: ekranda gösterilecek etiket metni
+3. `reasons`: neden riskli sayıldığını açıklayan liste
+4. `final_url`: incelenen URL
+
+Bu yapı sayesinde view tarafında sonuçları tek tek taşımak yerine düzenli bir nesne kullanılıyor.
+
+### `security_scan_url` Fonksiyonu Ne Yapıyor?
+
+Bu fonksiyon güvenlik mekanizmasının merkezidir. Bir URL alır ve adım adım risk kontrolü yapar.
+
+Kod akışı şu şekilde çalışır:
+
+1. `urlparse(url)` ile URL parçalanır.
+2. `hostname` küçültülür ve normalize edilir.
+3. `PHISHING_PATTERN.search(url)` ile şüpheli kelime veya karakterler aranır.
+4. `@` işareti varsa kullanıcı adı/parola ayracı olarak değerlendirilir.
+5. Alan adı `xn--` ile başlıyorsa homografik/punycode riskinden şüphelenilir.
+6. `hostname in SUSPICIOUS_DOMAINS` ile kara liste kontrolü yapılır.
+7. `ipaddress.ip_address(hostname)` ile alan adının IP olup olmadığı anlaşılır.
+8. Nokta sayısı fazlaysa çok katmanlı alt alan adı yapısı olarak işaretlenir.
+9. `requests.head(url, allow_redirects=False, timeout=3)` ile redirect denemesi kontrol edilir.
+10. Hata veya bağlantı sorunu olursa bu da nedenler listesine eklenir.
+
+Sonunda `reasons` listesi boşsa `safe=True` olur, değilse `safe=False` döner.
+
+### Redirect Kontrolü Neden Yapılıyor?
+
+Phishing linkler bazen kullanıcıyı ilk etapta temiz görünen bir adrese yönlendirip sonra başka adrese atabilir. Bu yüzden `requests.head(...)` ile doğrudan yönlendirme başlığına bakılıyor.
+
+Kodda iki şey özellikle kontrol ediliyor:
+
+1. HTTP durum kodu 300-399 arası mı?
+2. `Location` başlığı var mı?
+
+Bu ikisi varsa link yönlendirme içeriyor olabilir.
+
+### `is_http_url` Ne İşe Yarıyor?
+
+Bu küçük yardımcı fonksiyon, tarama yapılacak verinin gerçekten bir HTTP/HTTPS URL olup olmadığını kontrol eder. Çünkü her payload URL değildir; Wi-Fi, VCard veya kripto payload'ları güvenlik taramasına sokmak anlamsız olur.
+
+Bu sayede sadece gerçek linklerde güvenlik analizi çalışır.
+
+### Bu Mekanizma Nerede Kullanılıyor?
+
+Güvenlik taraması iki yerde devreye giriyor:
+
+1. QR üretirken, payload bir URL ise `security_scan_url(payload)` çağrılıyor.
+2. QR çözümlerken, çözülen metin URL ise yine aynı kontrol yapılıyor.
+
+Yani kullanıcı hem üretim sırasında hem de çözümleme sonrası sonuç görmüş oluyor.
+
+### Sonuç Kullanıcıya Nasıl Gösteriliyor?
+
+View tarafında tarama sonucu template'e aktarılıyor ve [templates/qrtool/index.html](sunum%20provasi.md#L160) içinde şu alanlar gösteriliyor:
+
+1. Güvenli veya Şüpheli Link etiketi
+2. Bulunan nedenler listesi
+3. Eğer varsa çözümlenen URL metni
+
+Bu sayede kullanıcı sadece "riskli" uyarısı değil, neden riskli olduğuna dair kısa açıklama da görüyor.
+
+### Sunumda Nasıl Anlatılır?
+
+Şu şekilde söyleyebilirsin:
+
+"Güvenlik taramasında URL'yi önce parçalayıp bazı heuristik kurallar uyguluyorum. Şüpheli kelimeler, homografik alan adı, IP ile gizlenmiş adres, çok fazla alt alan adı ve redirect kontrolü yapıyorum. Sonuçta risk varsa nedenleriyle birlikte kullanıcıya gösteriyorum."
+
+### Kısa Ezber Cümleleri
+
+1. "Bu mekanizma tam bir antivirüs değil, heuristic risk kontrolü."
+2. "URL'yi parçalayıp phishing işaretleri arıyorum."
+3. "Redirect, kara liste, IP kullanımı ve punycode kontrolü yapıyorum."
+4. "Sonuç güvenli mi değil mi ve nedenleriyle birlikte gösteriliyor."

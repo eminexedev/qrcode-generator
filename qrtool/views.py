@@ -49,12 +49,12 @@ class QRDecodeResult:
 
 
 def build_wifi_payload(ssid: str, password: str, encryption: str) -> str:
-    # Wi-Fi QR standardında özel karakterleri kaçışlayarak payload üretir.
+    # Wi-Fi QR standardında özel karakterleri kaçışlayarak payload(veri) üretir.
     ssid_escaped = ssid.replace("\\", "\\\\").replace(";", r"\;").replace(",", r"\,")
     password_escaped = password.replace("\\", "\\\\").replace(";", r"\;").replace(",", r"\,")
     return f"WIFI:T:{encryption};S:{ssid_escaped};P:{password_escaped};;"
 
-
+# VCard formatında QR kodu için payload oluşturur; alanları isteğe bağlı olarak ekler.
 def build_vcard_payload(data: dict[str, str]) -> str:
     # VCard 3.0 formatında satır tabanlı içerik oluşturur.
     lines = [
@@ -76,19 +76,19 @@ def build_vcard_payload(data: dict[str, str]) -> str:
     lines.append("END:VCARD")
     return "\n".join(lines)
 
-
+# Kripto cüzdanları için URI şeması oluşturur; IBAN için sade format, kripto için query parametreli şema kullanılır.
 def build_crypto_payload(wallet_type: str, address: str, label: str, amount: str) -> str:
     # IBAN için sade format, kripto için query parametreli şema kullanılır.
     if wallet_type == "iban":
         iban = re.sub(r"\s+", "", address.upper())
         return f"IBAN:{iban}"
-
+# Kripto para adresleri için URI şeması oluşturur; etiket ve tutar gibi isteğe bağlı bilgileri query parametreleri olarak ekler.
     query_parts: list[str] = []
     if label:
-        query_parts.append(f"label={quote(label)}")
+        query_parts.append(f"label={quote(label)}") # Etiket bilgisi URL kodlamasıyla güvenli hale getirilir.
     if amount:
         query_parts.append(f"amount={quote(amount)}")
-    query = f"?{'&'.join(query_parts)}" if query_parts else ""
+    query = f"?{'&'.join(query_parts)}" if query_parts else "" 
     return f"crypto:{address}{query}"
 
 

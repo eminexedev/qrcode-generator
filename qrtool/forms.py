@@ -103,6 +103,40 @@ class QRBuildForm(forms.Form):
         self.fields["primary_color"].widget.attrs["type"] = "color"
         self.fields["secondary_color"].widget.attrs["type"] = "color"
 
+    def clean(self):
+        cleaned = super().clean()
+        data_type = cleaned.get("data_type")
+        errors_found = False
+
+        if data_type == "url":
+            if not cleaned.get("url"):
+                self.add_error("url", "URL alanı gereklidir.")
+                errors_found = True
+
+        elif data_type == "wifi":
+            if not cleaned.get("wifi_ssid"):
+                self.add_error("wifi_ssid", "Wi‑Fi adı (SSID) gereklidir.")
+                errors_found = True
+            enc = cleaned.get("wifi_encryption")
+            if enc and enc != "nopass" and not cleaned.get("wifi_password"):
+                self.add_error("wifi_password", "Seçilen şifreleme için parola gereklidir.")
+                errors_found = True
+
+        elif data_type == "vcard":
+            if not (cleaned.get("vcard_first_name") or cleaned.get("vcard_last_name")):
+                self.add_error("vcard_first_name", "Ad veya soyad girilmelidir.")
+                errors_found = True
+
+        elif data_type == "crypto":
+            if not cleaned.get("crypto_address"):
+                self.add_error("crypto_address", "Adres veya IBAN gereklidir.")
+                errors_found = True
+
+        if errors_found:
+            raise forms.ValidationError("Lütfen gerekli alanları doldurun.")
+
+        return cleaned
+
 
 class QRScanForm(forms.Form):
     # QR çözümleme için kullanıcıdan görsel dosyası alınır.

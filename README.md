@@ -1,68 +1,55 @@
 # Gelişmiş QR Kod Oluşturucu, Çözümleyici ve Güvenlik Tarayıcı
 
-Bu proje, Django tabanlı bir web uygulamasıdır. Uygulama; QR kod üretimi, QR kod çözümleme (görselden okuma) ve URL güvenlik analizi özelliklerini tek panelde birleştirir. Sunum odaklı bakıldığında proje üç temel katmandan oluşur:
+Bu proje, Django tabanlı bir web uygulamasıdır. Uygulama; QR üretimi, QR çözümleme ve URL güvenlik analizi özelliklerini tek ekranda sunar.
 
-1. Sunum katmanı (HTML/CSS/JS): kullanıcı arayüzü, form etkileşimleri, canlı alan gösterme/gizleme.
-2. Uygulama katmanı (Django view/form): veriyi doğrulama, payload üretme, güvenlik kontrolleri.
-3. İşleme katmanı (kütüphaneler): QR üretme (`segno`), görsel işleme (`Pillow`, `opencv-python`), çözümleme (`pyzbar`), HTTP kontrolü (`requests`).
-
-## Projenin Ana Amacı
-
-Bu uygulama, farklı veri türleri için QR üretimini kolaylaştırırken güvenlik farkındalığını da artırmayı hedefler. Özellikle URL içeren QR kodlarda temel phishing belirtilerini kontrol ederek kullanıcıyı bilgilendirir.
-
-## Temel Özellikler
+## Özellikler
 
 1. URL, Wi-Fi, VCard ve Kripto/IBAN verisinden QR üretimi.
-2. PNG, SVG ve GIF formatlarında çıktı alma.
-3. QR merkezine logo/ikon ekleyebilme.
-4. Renk, gradient ve şeffaf arka plan özelleştirmeleri.
-5. Yüklenen görsellerden QR çözümleme.
-6. Çözümleme sonrası bulunan metin URL ise güvenlik analizi.
+2. PNG, SVG ve GIF çıktıları.
+3. Logo/ikon ekleme, renk seçimi, gradient ve şeffaf arka plan desteği.
+4. Yüklenen görsellerden QR çözümleme.
+5. Çözümlenen metin URL ise temel heuristik güvenlik analizi.
+6. Veri türüne göre zorunlu alan validasyonu (boş değerle QR üretimi engellenir).
 
-## Kullanılan Teknolojiler
+## Güncel Mimari
 
-1. Django: web çatısı ve istek/yanıt yönetimi.
-2. Segno: yüksek kaliteli QR üretimi.
-3. Pillow: görsel birleştirme, logo bindirme ve raster işlemleri.
-4. OpenCV + NumPy: görsel ön işleme.
-5. pyzbar: barkod/QR çözümleme.
-6. Bootstrap 5: responsive ve modern arayüz.
+İş mantığı modüler hale getirilmiştir:
+
+- `qrtool/views.py`: yalnızca akış orkestrasyonu (`index`).
+- `qrtool/payloads.py`: payload üretimi (`build_wifi_payload`, `build_vcard_payload`, `build_crypto_payload`).
+- `qrtool/security.py`: URL analizi (`security_scan_url`, `is_http_url`, `SecurityResult`).
+- `qrtool/renderers.py`: QR render katmanı (PNG/GIF/SVG, logo, SVG raster yardımcıları).
+- `qrtool/decoders.py`: QR çözümleme (`_decode_qr_image`, `QRDecodeResult`).
+- `qrtool/forms.py`: form alanları + veri türüne göre server-side validasyon.
+
+## Teknolojiler
+
+1. Django
+2. Segno
+3. Pillow
+4. OpenCV + NumPy
+5. pyzbar
+6. requests
+7. Bootstrap 5
 
 ## Kurulum (Windows)
-
-1. Proje klasörüne geçin.
-2. Sanal ortam oluşturun ve aktif edin.
-3. Bağımlılıkları kurun.
-4. Migrasyonları çalıştırın.
-5. Sunucuyu başlatın.
-
-```powershell
-python -m venv .venv
-
-Bu depo, Django ile hazırlanmış bir "QR üretme ve çözümleme" uygulamasıdır. Ek olarak basit bir URL güvenlik kontrolü (heuristic) içerir.
-
-Öne çıkan özellikler:
-- URL, Wi-Fi, VCard ve Kripto/IBAN formatlarında QR üretimi.
-- PNG, SVG ve GIF (basit animasyon) çıktıları.
-- Logo/ikon bindirme, renk ve şeffaf arka plan desteği.
-- Görsellerden QR okuma ve çözümleme (pyzbar + OpenCV).
-
-Hızlı kurulum (Windows):
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 .\.venv\Scripts\python.exe manage.py migrate
-.\.venv\Scripts\python.exe manage.py runserver
+.\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
 ```
 
-Tarayıcıda `http://127.0.0.1:8000` adresini açın.
+Tarayıcı: `http://127.0.0.1:8000`
 
-Dosya yapısı:
-- `qrtool/` — Uygulama mantığı (`views.py`, `forms.py`, `urls.py`).
-- `templates/qrtool/` — HTML şablonları (`base.html`, `index.html`).
-- `qrcode_project/` — Django proje ayarları.
+## Hızlı Doğrulama
 
+```powershell
+.\.venv\Scripts\python.exe manage.py check
+```
 
+## Not
 
+Güvenlik taraması, üretim seviyesinde tam kapsamlı bir tehdit motoru değildir. Demo amaçlı temel heuristik kontrol katmanı olarak tasarlanmıştır.

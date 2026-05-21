@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from pyzbar.pyzbar import decode as pyzbar_decode
 
-from .renderers import _svg_bytes_to_png_bytes, _segno_svg_bytes_to_png_bytes
+from .qr_code_create import _svg_bytes_to_png_bytes, _segno_svg_bytes_to_png_bytes
 
 # QR kodu çözme işlemi için yardımcı fonksiyonlar ve veri sınıfları.
 @dataclass

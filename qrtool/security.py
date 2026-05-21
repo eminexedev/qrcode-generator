@@ -14,6 +14,7 @@ SUSPICIOUS_DOMAINS = {
     "phishing.test",
 }
 
+# Şüpheli kelime ve karakter kalıplarını içeren regex deseni
 PHISHING_PATTERN = re.compile(
     r"(@|xn--|%[0-9a-fA-F]{2}|https?://[^/]+@|\b(?:login|verify|update|secure|account)\b)",
     re.IGNORECASE,
@@ -32,7 +33,7 @@ def is_http_url(value: str) -> bool:
     parsed = urlparse(value)
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
-
+# Basit güvenlik taraması: regex, kara liste, IP kontrolü, yönlendirme tespiti
 def security_scan_url(url: str) -> SecurityResult:
     reasons: list[str] = []
     parsed = urlparse(url)

@@ -6,7 +6,7 @@ from typing import Sequence, Any, cast
 import segno
 from PIL import Image, ImageColor, ImageDraw, ImageOps
 
-
+# QR kodu oluşturma ve renderlama işlemi yapan fonksiyonlar
 def _interpolate_color(start: Sequence[int], end: Sequence[int], ratio: float) -> tuple[int, int, int]:
     s0 = int(start[0]) if len(start) > 0 else 0
     s1 = int(start[1]) if len(start) > 1 else 0
@@ -18,7 +18,7 @@ def _interpolate_color(start: Sequence[int], end: Sequence[int], ratio: float) -
     e = (e0, e1, e2)
     return (int(s[0] + (e[0] - s[0]) * ratio), int(s[1] + (e[1] - s[1]) * ratio), int(s[2] + (e[2] - s[2]) * ratio))
 
-
+# Verilen payloada göre QR kodu matrisi oluşturma
 def _coerce_rgb_color(value: str, fallback: tuple[int, int, int]) -> tuple[int, int, int]:
     try:
         rgb = ImageColor.getrgb(value)
@@ -29,15 +29,15 @@ def _coerce_rgb_color(value: str, fallback: tuple[int, int, int]) -> tuple[int, 
     except Exception:
         return fallback
 
-
+# QR kodunu PNG/GIF formatında renderlama
 def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
-
+# QR kodunu SVG formatında renderlama
 def _make_qr_matrix(payload: str):
     return segno.make(payload, error="h")
 
-
+# SVG içindeki QR koduna logo ekleme işlemi
 def _render_png_or_gif(
     qr_obj,
     primary_color: str,
@@ -63,6 +63,7 @@ def _render_png_or_gif(
     if logo_file:
         logo_image = Image.open(logo_file).convert("RGBA")
 
+# Her kare için QR kodunu çizerek animasyonlu GIF oluşturma veya tek kareli PNG oluşturma
     for frame_index in range(frame_count):
         image = Image.new("RGBA", (total, total), bg_rgba)
         draw = ImageDraw.Draw(image)
@@ -92,6 +93,7 @@ def _render_png_or_gif(
 
                 draw.rectangle([x1, y1, x2, y2], fill=fill_rgb + (255,))
 
+# Logo ekleme işlemi: Logonun boyutunu QR kodunun %22'si kadar yaparak ortalayarak yerleştirir.
         if logo_image:
             logo_size = int(total * 0.22)
             logo = ImageOps.contain(logo_image, (logo_size, logo_size))
@@ -122,7 +124,9 @@ def _render_png_or_gif(
 
     return output.getvalue()
 
-
+# SVG içindeki QR koduna logo ekleme işlemi: 
+# SVG'yi XML olarak işleyerek logo görselini base64 formatında ekler 
+# ve logonun boyutunu QR kodunun %22'si kadar yaparak ortalayarak yerleştirir.
 def _inject_logo_into_svg(svg_text: str, logo_file, qr_size: int = 1000) -> str:
     if not logo_file:
         return svg_text
@@ -171,7 +175,8 @@ def _inject_logo_into_svg(svg_text: str, logo_file, qr_size: int = 1000) -> str:
     root.append(image)
     return ET.tostring(root, encoding="unicode")
 
-
+# Her kare için QR kodunu çizerek animasyonlu GIF oluşturma veya tek kareli PNG oluşturma: 
+# Logonun boyutunu QR kodunun %22'si kadar yaparak ortalayarak yerleştirir ve her karede renklerde hafif bir animasyon efekti uygular.
 def _render_svg(qr_obj, primary_color: str, transparent_bg: bool, logo_file) -> bytes:
     dark_rgb = _coerce_rgb_color(primary_color, (17, 17, 17))
     output = io.BytesIO()
@@ -189,7 +194,8 @@ def _render_svg(qr_obj, primary_color: str, transparent_bg: bool, logo_file) -> 
         svg_text = _inject_logo_into_svg(svg_text, logo_file)
     return svg_text.encode("utf-8")
 
-
+# Her kare için QR kodunu çizerek animasyonlu GIF oluşturma veya tek kareli PNG oluşturma: 
+# Logonun boyutunu QR kodunun %22'si kadar yaparak ortalayarak yerleştirir ve her karede renklerde hafif bir animasyon efekti uygular.
 def _svg_bytes_to_png_bytes(svg_bytes: bytes) -> bytes:
     try:
         import importlib

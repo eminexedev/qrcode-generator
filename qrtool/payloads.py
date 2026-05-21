@@ -16,17 +16,17 @@ def build_vcard_payload(data: dict[str, str]) -> str:
         f"FN:{data.get('first_name', '')} {data.get('last_name', '')}".strip(),
     ]
     if data.get("org"):
-        lines.append(f"ORG:{data['org']}")
+        lines.append(f"ORG:{data['org']}") # Organizasyon bilgisi ekleme
     if data.get("title"):
-        lines.append(f"TITLE:{data['title']}")
+        lines.append(f"TITLE:{data['title']}") # Unvan bilgisi ekleme
     if data.get("phone"):
-        lines.append(f"TEL;TYPE=CELL:{data['phone']}")
+        lines.append(f"TEL;TYPE=CELL:{data['phone']}") # Telefon numarası ekleme
     if data.get("email"):
-        lines.append(f"EMAIL:{data['email']}")
+        lines.append(f"EMAIL:{data['email']}") # E-posta adresi ekleme
     if data.get("website"):
-        lines.append(f"URL:{data['website']}")
+        lines.append(f"URL:{data['website']}") # Web sitesi URL'si ekleme
     lines.append("END:VCARD")
-    return "\n".join(lines)
+    return "\n".join(lines) # VCard formatında kişi bilgilerini içeren payload oluşturma
 
 # Kripto para adresi veya IBAN bilgisi için gerekli alanlara göre payload oluşturma
 def build_crypto_payload(wallet_type: str, address: str, label: str, amount: str) -> str:

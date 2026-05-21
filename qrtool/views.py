@@ -6,7 +6,7 @@ from django.shortcuts import render
 from .forms import QRBuildForm, QRScanForm
 from .payloads import build_wifi_payload, build_vcard_payload, build_crypto_payload
 from .security import security_scan_url, is_http_url, SecurityResult
-from .renderers import _make_qr_matrix, _render_png_or_gif, _render_svg, _make_data_uri
+from .qr_code_create import _make_qr_matrix, _render_png_or_gif, _render_svg, _make_data_uri
 from .decoders import _decode_qr_image
 
 

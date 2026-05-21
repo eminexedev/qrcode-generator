@@ -2,7 +2,7 @@ from django.urls import path
 from .views import index
 
 
-# Uygulamanın tek giriş noktası ana sayfadır.
+# ana index yöntemi için URL yapılandırması
 urlpatterns = [
     path("", index, name="index"),
 ]

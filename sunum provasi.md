@@ -304,3 +304,177 @@ Sunumda şunu söyleyebilirsin: "qr_code.py, Segno'nun temel kullanımını dene
 3. "Bu bölümde kullanıcı arayüzünü ve form akışını yönetiyorum."
 4. "Bu kısımda güvenlik için heuristik kontroller yapıyorum, kesin karar mekanizması değil."
 5. "Bu dosya ana iş mantığını taşıyor, diğerleri onu destekliyor."
+
+## Kütüphaneler Neden Kullanıldı?
+
+Bu bölümde projede kullanılan ana kütüphaneleri, neden seçildiklerini ve kodun hangi kısmında kullanıldıklarını anlatıyorum. Sunumda hoca "neden bunu kullandın?" diye sorarsa buradaki cevaplar yeterli olur.
+
+### Django
+
+Django, projenin ana web çatısıdır. Kullanıcıdan veri alma, form doğrulama, sayfa yönlendirme, template render etme ve istek/yanıt akışını yönetme işi onunla yapılır.
+
+Nerede kullanıldı:
+
+1. [manage.py](sunum%20provasi.md#L160) ile Django komutları başlatılıyor.
+2. [qrcode_project/settings.py](sunum%20provasi.md#L160) içinde proje ayarları, app listesi ve template ayarları tutuluyor.
+3. [qrcode_project/urls.py](sunum%20provasi.md#L160) ve [qrtool/urls.py](sunum%20provasi.md#L160) ile routing yapılıyor.
+4. [qrtool/forms.py](sunum%20provasi.md#L160) ile form alanları tanımlanıyor.
+5. [qrtool/views.py](sunum%20provasi.md#L160) içinde tüm iş mantığı çalışıyor.
+6. [templates/qrtool/index.html](sunum%20provasi.md#L160) ile kullanıcı arayüzü gösteriliyor.
+
+Neden seçildi:
+
+1. Python ile doğal uyum sağlar.
+2. Form ve template yapısı bu proje için çok uygundur.
+3. QR üretimi, çözümleme ve güvenlik kontrolü gibi farklı akışları tek çatı altında toplamak kolay olur.
+
+Sunum cümlesi: "Django'yu projenin omurgası olarak kullandım; çünkü form, routing ve template yönetimini düzenli şekilde çözmemi sağladı."
+
+### segno
+
+segno, QR kod üretimi için kullandığım ana kütüphanedir. Bu kütüphane QR matrisini oluşturur ve çıktı formatlarına dönüştürmeyi kolaylaştırır.
+
+Nerede kullanıldı:
+
+1. [qrtool/views.py](sunum%20provasi.md#L160) içindeki _make_qr_matrix fonksiyonunda QR nesnesi üretiliyor.
+2. Aynı dosyada _render_svg fonksiyonunda SVG çıktısı oluşturuluyor.
+3. _render_png_or_gif fonksiyonunda segno'nun ürettiği QR matrisi piksel bazlı çizim için temel oluyor.
+4. [qr_code.py](sunum%20provasi.md#L160) içinde basit örnek kullanım da var.
+
+Neden seçildi:
+
+1. Hata düzeltme seviyesi yüksek QR üretimi sağlar.
+2. SVG gibi vektörel çıktıyı doğrudan destekler.
+3. QR verisini farklı render akışlarına uygun şekilde üretmek kolaydır.
+
+Sunum cümlesi: "QR'ın kendisini üretmek için segno kullandım; çünkü hem sağlam QR matrisi oluşturuyor hem de PNG, GIF ve SVG gibi farklı çıktılara uygun çalışıyor."
+
+### Pillow
+
+Pillow, görsel işleme tarafında kullandığım ana kütüphanedir. Logo bindirme, renk işleme, arka plan düzenleme ve çıktı kaydetme gibi işler burada yapılır.
+
+Nerede kullanıldı:
+
+1. [qrtool/views.py](sunum%20provasi.md#L160) içinde Image, ImageColor, ImageDraw ve ImageOps import ediliyor.
+2. _render_png_or_gif fonksiyonunda QR kod piksel piksel çiziliyor.
+3. Logo dosyası varsa merkezde birleştiriliyor.
+4. _inject_logo_into_svg içinde SVG mantığına yardımcı olacak logo görseli işlemleri yapılıyor.
+5. _segno_svg_bytes_to_png_bytes fonksiyonunda SVG'den bitmap üretiminde çizim kullanılıyor.
+
+Neden seçildi:
+
+1. Python tarafında görsel işleme için pratik ve güçlüdür.
+2. QR'a logo ekleme gibi tasarımsal işleri kolaylaştırır.
+3. PNG ve GIF gibi raster formatları güvenilir biçimde üretir.
+
+Sunum cümlesi: "Pillow'u görsel düzenleme için kullandım; özellikle logo ekleme, renk çizimi ve PNG/GIF üretimi bu kütüphane ile yapılıyor."
+
+### OpenCV
+
+OpenCV, görüntü ön işleme ve QR çözümleme performansını artırmak için kullanıldı. QR görsellerini çözmeden önce bazı durumlarda filtreleme veya format hazırlama amacıyla tercih edilir.
+
+Nerede kullanıldı:
+
+1. [qrtool/views.py](sunum%20provasi.md#L160) içinde cv2 import ediliyor.
+2. QR çözümleme akışında görselin işlenmesi için yardımcı rol oynuyor.
+
+Neden seçildi:
+
+1. Görüntü işleme konusunda güçlü bir altyapı sunar.
+2. Zor okunabilen görsellerde ön işleme için faydalıdır.
+3. Python ekosisteminde QR çözümleme gibi işleri destekleyen standart araçlardan biridir.
+
+Sunum cümlesi: "OpenCV'yi görsel ön işleme için kullandım; çünkü QR okuma sırasında görüntüyü daha uygun hale getirmeye yardımcı oluyor."
+
+### NumPy
+
+NumPy, görüntü ve piksel verileri üzerinde sayısal işlem yapmak için kullanıldı. OpenCV ile birlikte özellikle matris tabanlı işlemlerde faydalıdır.
+
+Nerede kullanıldı:
+
+1. [qrtool/views.py](sunum%20provasi.md#L160) içinde np import ediliyor.
+2. Görsel ön işleme ve matris tabanlı dönüşümlerde yardımcı rol oynuyor.
+
+Neden seçildi:
+
+1. Görüntüler sayısal matrislerdir; NumPy bu yapı için uygundur.
+2. OpenCV ile doğal biçimde birlikte çalışır.
+3. Hızlı ve pratik veri dönüşümü sağlar.
+
+Sunum cümlesi: "NumPy'yi görüntüleri matris olarak işlemek için kullandım; OpenCV ile birlikte çözümleme tarafını destekliyor."
+
+### pyzbar
+
+pyzbar, QR ve barkod çözümleme için kullandığım kütüphanedir. Kullanıcının yüklediği görselin içindeki QR verisini okumak için bu kütüphane üzerinden decode işlemi yapılıyor.
+
+Nerede kullanıldı:
+
+1. [qrtool/views.py](sunum%20provasi.md#L160) içinde from pyzbar.pyzbar import decode as pyzbar_decode satırı var.
+2. QR çözümleme akışında görselden veri okumak için kullanılıyor.
+
+Neden seçildi:
+
+1. QR ve barkod çözümleme için doğrudan ve sade bir API sağlar.
+2. Python tarafında pratik kullanım sunar.
+3. Çözümleme sonucunda tip ve içerik bilgisi vermesi sunum açısından da güçlüdür.
+
+Sunum cümlesi: "QR kodu okuma kısmında pyzbar kullandım; çünkü görselin içindeki QR verisini doğrudan çözebiliyor."
+
+### requests
+
+requests, URL güvenlik kontrolü sırasında dış istekte bulunmak için kullanılıyor. Özellikle yönlendirme olup olmadığını hızlıca anlamak için HEAD isteği atılıyor.
+
+Nerede kullanıldı:
+
+1. [qrtool/views.py](sunum%20provasi.md#L160) içindeki security_scan_url fonksiyonunda requests.head kullanılıyor.
+
+Neden seçildi:
+
+1. HTTP istekleri için en sade ve yaygın Python kütüphanelerinden biridir.
+2. Redirect kontrolü yapmak için kolay kullanılır.
+3. Güvenlik taraması gibi küçük kontrol işlerinde yeterince hızlıdır.
+
+Sunum cümlesi: "requests'i URL kontrolü için kullandım; özellikle yönlendirme ve şüpheli cevapları hızlıca kontrol etmek için."
+
+### Bootstrap 5
+
+Bootstrap, kullanıcı arayüzünü daha düzenli, responsive ve modern yapmak için kullanıldı. Formların hizalanması, sekmeler, kart yapıları ve butonlar burada güçlü şekilde destekleniyor.
+
+Nerede kullanıldı:
+
+1. [templates/qrtool/base.html](sunum%20provasi.md#L160) içinde CDN üzerinden ekleniyor.
+2. [templates/qrtool/index.html](sunum%20provasi.md#L160) içinde nav-tabs, grid ve form sınıflarıyla kullanılıyor.
+3. [qrtool/forms.py](sunum%20provasi.md#L160) içinde form alanlarına bootstrap sınıfları ekleniyor.
+
+Neden seçildi:
+
+1. Hızlı ve temiz arayüz oluşturur.
+2. Mobil uyumlu tasarımı kolaylaştırır.
+3. Form tabanlı projelerde düzenli bir görünüm sağlar.
+
+Sunum cümlesi: "Bootstrap'ı arayüzü hızlıca düzenlemek ve responsive hale getirmek için kullandım."
+
+### HTML, CSS ve JavaScript
+
+Bunlar ayrı paket değil ama projenin ön yüzünü oluşturan temel web teknolojileridir. HTML yapı kurar, CSS görünümü tasarlar, JavaScript ise alan gösterme/gizleme ve renk güncelleme gibi dinamik davranışları yönetir.
+
+Nerede kullanıldı:
+
+1. [templates/qrtool/base.html](sunum%20provasi.md#L160) içinde genel stil tanımları var.
+2. [templates/qrtool/index.html](sunum%20provasi.md#L160) içinde form ve sekme yapısı kurulmuş.
+3. Sayfadaki bazı dinamik davranışlar JavaScript ile yönetiliyor.
+
+Neden seçildi:
+
+1. Web arayüzü için zorunlu temel katmandır.
+2. Kullanıcı deneyimini doğrudan iyileştirir.
+3. QR üretiminde gerekli alanları koşullu olarak göstermek için uygundur.
+
+Sunum cümlesi: "Ön yüzü HTML, CSS ve JavaScript ile kurdum; form görünümü ve dinamik alan geçişleri burada yönetiliyor."
+
+## Kütüphaneleri Anlatırken Kullanabileceğin Kısa Mantık
+
+1. "Bu kütüphaneyi şu işi kolaylaştırdığı için kullandım."
+2. "Kodda şu fonksiyonda kullanılıyor."
+3. "Alternatif vardı ama bu çözüm hem daha sade hem de proje ihtiyacına daha uygundu."
+4. "Bu kütüphane işin şu parçasını çözüyor: üretim, çözümleme, görsel işleme veya güvenlik kontrolü."

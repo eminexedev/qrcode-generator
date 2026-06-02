@@ -44,7 +44,7 @@ Uygulama tek sayfada iki ana iş yapıyor: QR üretme ve QR çözme.
 
 ### Görsel İşleme Katmanı
 
-1. `qrtool/renderers.py`
+1. `qrtool/renderers.py` (Yeni adıyla `qr_code_create.py`)
    - QR matris üretimi ve render işlemleri.
    - PNG/GIF/SVG üretimi, logo ekleme, SVG raster yardımcıları.
 
@@ -64,61 +64,160 @@ Uygulama tek sayfada iki ana iş yapıyor: QR üretme ve QR çözme.
 2. `views.index` isteği alır.
 3. `forms.py` validasyonu çalışır.
 4. Geçerliyse ilgili modül çağrılır:
-   - Üretimde: `payloads` + `renderers`.
-   - Çözümlemede: `decoders`.
+   - Üretimde: `payloads` + `qr_code_create.py`.
+   - Çözümlemede: `decoders.py`.
 5. Sonuç URL ise `security` analizi yapılır.
 6. Context hazırlanır ve `templates/qrtool/index.html` render edilir.
 
-## 6) Son Değişiklik: Boş Veriyle QR Üretimini Engelleme
+## 6) Kütüphaneler: Hangileri, Neden ve Nerede Kullanıldı?
 
-Bu bölüm sunumda özellikle anlatılmalı.
+Projenin temel bileşenlerini oluşturan kütüphaneler ve kullanım detayları şunlardır:
 
-### Sorun
+### 1. Django
+- **Neden Kullanıldı?** Web uygulamasının temel iskeletini oluşturmak, form doğrulama (validation), HTML template rendering ve MVC/MVT mimarisini hızlıca kurmak için.
+- **Nerede Kullanıldı?** Projenin tüm HTTP istek/yanıt döngüsünde. Özellikle `qrtool/views.py` dosyasında `index()` fonksiyonunda istekleri (POST/GET) karşılamak ve orchestrate etmek (yönetmek) için; `qrtool/forms.py` dosyasında kullanıcıdan gelen verileri doğrulamak için kullanılmıştır.
 
-Bazı veri türlerinde alanlar boş bırakıldığında yine de üretim akışı tetiklenebiliyordu.
+### 2. segno
+- **Neden Kullanıldı?** Güvenilir ve çok yetenekli bir QR matris (model) üretme kütüphanesi olduğu için. SVG, PNG gibi çıktıları doğrudan veya dolaylı verebilecek matris verisini üretir.
+- **Nerede Kullanıldı?** `qrtool/qr_code_create.py` dosyasında, kullanıcı verisini (payload) QR matrisine dönüştürürken. Özellikle `_make_qr_matrix(payload)` fonksiyonu içinde `segno.make()` çağrısı ile kullanılmıştır.
 
-### Çözüm
+### 3. Pillow (PIL)
+- **Neden Kullanıldı?** Görseller üzerinde piksel tabanlı işlemler yapmak (raster görüntü oluşturma, çizim), karelere (framelere) ayırarak animasyonlu GIF'ler üretmek ve QR kodun ortasına logo bindirmek (overlay) için.
+- **Nerede Kullanıldı?** `qrtool/qr_code_create.py` dosyasında `_render_png_or_gif` fonksiyonu içerisinde. QR modüllerini (`is_dark` olup olmamasına göre) tek tek piksel bazında çizerken, gradient efekti verirken ve `Image.open(logo_file)` ile logoyu QR içine gömerken kullanılır.
 
-`QRBuildForm.clean()` içinde veri türüne özel kurallar eklendi.
+### 4. opencv-python (cv2)
+- **Neden Kullanıldı?** Yüklenen kullanıcı görselleri üzerinde gelişmiş ön işlem (pre-processing) yapmak için. Bazen QR kodları bulanık, düşük ışıklı veya okunması zor olabilir; bu yüzden gri tonlama ve eşikleme (thresholding) yapmak başarı oranını büyük ölçüde artırır.
+- **Nerede Kullanıldı?** `qrtool/decoders.py` dosyasında `iter_preprocessed_images()` fonksiyonu içerisinde. `cv2.imdecode` ile görseli okur, `cv2.cvtColor` ile gri tonlamaya çevirir, `cv2.threshold` ile OTSU veya standart siyah-beyaz (binary) filtreden geçirir.
 
-1. URL türünde `url` zorunlu.
-2. Wi-Fi türünde `wifi_ssid` zorunlu.
-3. Wi-Fi şifreleme `nopass` değilse `wifi_password` zorunlu.
-4. VCard türünde en az ad veya soyad zorunlu.
-5. Kripto/IBAN türünde `crypto_address` zorunlu.
+### 5. numpy
+- **Neden Kullanıldı?** OpenCV kütüphanesinin arka planda matrix hesaplamaları için ndarray (N-dimensional array) formatında çalışması gerektiği için. Python'daki byte verilerini OpenCV'nin anlayacağı formata çevirmek için kullanılır.
+- **Nerede Kullanıldı?** `qrtool/decoders.py` dosyasında, kullanıcıdan gelen raw image bytelarını numpy array'e (`np.frombuffer`) dönüştürmek için kullanılmıştır.
 
-### Kazanım
+### 6. pyzbar
+- **Neden Kullanıldı?** C++ tabanlı ZBar kütüphanesinin Python binding'i olarak; görsel içerisindeki QR kod ve barkodları bulup içindeki metni (string) okumak için.
+- **Nerede Kullanıldı?** `qrtool/decoders.py` dosyasındaki `decode_with_pyzbar` fonksiyonu içerisinde. OpenCV ile hazırlanan filtrelenmiş görseller pyzbar'ın `decode` fonksiyonuna verilir ve çıkan `item.data` çözümlenerek elde edilir.
 
-1. Boş/anlamsız payload ile QR üretimi engellendi.
-2. İş kuralı sunucu tarafına taşındığı için güvenilirlik arttı.
-3. Frontend atlatılsa bile backend veri bütünlüğü korunuyor.
+### 7. requests
+- **Neden Kullanıldı?** Güvenlik analizi yapılacak olan URL'lerin arkasında zararlı bir yönlendirme (redirect) olup olmadığını anlamak için sahte bir "HEAD" HTTP isteği atmak amacıyla.
+- **Nerede Kullanıldı?** `qrtool/security.py` dosyasında `security_scan_url()` fonksiyonunda; `requests.head(url)` şeklinde yönlendirme zincirlerini takip etmek için.
 
-## 7) QR Üretim Akışını Teknik Anlatım
+---
 
-1. Formdan `data_type` ve alanlar gelir.
-2. `payloads.py` ilgili standarda göre metin üretir.
-3. `renderers._make_qr_matrix` ile matris çıkarılır.
-4. Çıktı formatına göre:
-   - PNG/GIF: `_render_png_or_gif`
-   - SVG: `_render_svg`
-5. Üretilen binary veri data URI olarak template'e gönderilir.
-6. Kullanıcı önizler ve indirir.
+## 7) Önemli Fonksiyonlar ve Kod Detayları
 
-## 8) QR Çözümleme Akışını Teknik Anlatım
+Projedeki en kritik fonksiyonların nasıl çalıştığı detaylandırılmıştır:
 
-1. Kullanıcı görsel yükler.
-2. SVG ise önce raster dönüşüm alternatifleri denenir.
-3. OpenCV ile gri tonlama, threshold ve OTSU filtreleri uygulanır.
-4. pyzbar ile QR decode edilir.
-5. Sonuç text bulunursa type/filter bilgisiyle birlikte döndürülür.
-6. Text URL ise güvenlik analizi yapılır.
+### 1. `qrtool/views.py` -> `index()`
+**Amacı:** Kullanıcının tüm etkileşimini (QR oluşturma ve QR tarama) tek bir endpoint üzerinden orkestre eden Ana İstek Yönetici Fonksiyonudur.
+**Detaylı Kod Mantığı:**
+- Formların POST edilip edilmediğine bakar: `action == "generate"` mi yoksa `action == "scan"` mi?
+- Eğer "generate" (üretme) işlemi gelirse, önce veri tipini (`url`, `wifi`, `vcard`, vb.) `qr_form.cleaned_data["data_type"]` üzerinden alır ve ilgili `payloads.py` builder'ını çağırarak QR'a gömülecek ham metni (payload) oluşturur.
+- Sonrasında güvenlik analizi (`security_scan_url()`) yapılır ve `_make_qr_matrix()` ile QR matrisi hesaplanır. Seçilen formata göre PNG, GIF veya SVG çıktısı alınarak `context`'e basılır.
+- Eğer "scan" (tarama) işlemiyse, `_decode_qr_image()` fonksiyonuna yüklenen dosya gönderilir ve çıkan sonuç yine güvenliğe sokularak ekrana yansıtılır.
+
+### 2. `qrtool/qr_code_create.py` -> `_render_png_or_gif()`
+**Amacı:** `segno` ile oluşturulmuş mantıksal (1'ler ve 0'lardan oluşan) QR matrisini, Pillow (PIL) kullanarak piksellere dökmek, renk/gradient uygulamak ve gerekirse animasyonlu bir GIF veya statik bir PNG üretmek.
+**Detaylı Kod Mantığı:**
+- Matrisin her bir satırını (`row`) ve sütununu (`col`) iterasyona sokar (`for row_index, row in enumerate(modules)`). Ekranda siyah kare (`is_dark = True`) olması gereken yerleri belirler.
+- Eğer gradient açıksa, `_interpolate_color()` fonksiyonunu çağırarak yukarıdan aşağıya doğru iki renk arasında geçiş hesaplar.
+- Eğer animasyon açıksa, `frame_count` (12 kare) kadar döngü çalışır. Her karede, renk tonunu kosinüs dalgası (`math.cos`) mantığı ile parlaklaştırıp karartarak pulse (nabız) efekti yaratır.
+- Eğer logo varsa, `ImageOps.contain` ile logoyu QR kodun %22'si boyutuna ölçekler ve tam orta noktaya `alpha_composite` ile yapıştırır.
+
+### 3. `qrtool/decoders.py` -> `iter_preprocessed_images()` ve `_decode_qr_image()`
+**Amacı:** Kullanıcının yüklediği bulanık veya kötü ışıklı bir QR kodunu pyzbar'ın anlayabilmesi için ön işlemden geçirmek ve çözümleme şansını maksimize etmek.
+**Detaylı Kod Mantığı:**
+- Gelen resmi önce OpenCV `cv2.imdecode` ile okur.
+- `iter_preprocessed_images()` adında bir generator mantığı kurularak tek bir görselden 4 farklı versiyon üretilir:
+  1. Orijinal Hali (`color_image`)
+  2. Gri Tonlama (`cv2.cvtColor(.., cv2.COLOR_BGR2GRAY)`)
+  3. Kesin Siyah/Beyaz (`cv2.threshold(.., 127, 255)`)
+  4. Dinamik Işık Dengesi / OTSU (`cv2.THRESH_OTSU`)
+- Her bir filtreli görsel için `decode_with_pyzbar` çalıştırılır. Eğer pyzbar içlerinden birinde dahi QR'ı başarıyla okursa, işlemi keser (`return decode_result`) ve sonucu kullanıcıya döndürür. Bu "brute-force filter" yaklaşımı projenin en zeki özelliklerinden biridir.
+
+---
+
+## 8) QR Code Generate Etme ve Taramayı Kodlarıyla Anlatım
+
+Aşağıda bu projenin temelini oluşturan QR kod üretme ve QR kod tarama işlemlerinin "en saf" (core) kod örnekleri anlatılmaktadır.
+
+### QR Code Generate Etme (Üretme) İşlemi
+Kullanıcının girdiği bir linki (`payload`) `segno` ile matrise çevirip, Pillow ile PNG'ye dönüştürme mantığı aşağıdaki gibidir:
+
+```python
+import segno
+import io
+from PIL import Image, ImageDraw
+
+def simple_qr_generate(payload: str, color: tuple = (0, 0, 0)) -> bytes:
+    # 1. Aşama: Payload'ı kullanarak mantıksal QR matrisini oluştur (Hata düzeltme yüksek "h")
+    qr_obj = segno.make(payload, error="h")
+    modules = qr_obj.matrix
+    scale = 10
+    size = len(modules) * scale
+    
+    # 2. Aşama: Boş bir beyaz Pillow Canvas (tuval) oluştur
+    image = Image.new("RGBA", (size, size), (255, 255, 255, 255))
+    draw = ImageDraw.Draw(image)
+    
+    # 3. Aşama: Matrisi tarayarak 1 (dark) olan pikselleri çiz
+    for row_idx, row in enumerate(modules):
+        for col_idx, is_dark in enumerate(row):
+            if is_dark:
+                x1, y1 = col_idx * scale, row_idx * scale
+                x2, y2 = x1 + scale, y1 + scale
+                draw.rectangle([x1, y1, x2, y2], fill=color + (255,))
+    
+    # 4. Aşama: Resmi byte formatına çevir ve döndür
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+```
+**Nasıl Çalışır?**
+`segno.make()` fonksiyonu string veriyi alır ve QR standartlarına göre iki boyutlu bir boolean matris (True/False tablosu) döner. Kodumuz bu tabloyu tek tek gezer; `True` olan kısımlara bir kare (`draw.rectangle`) çizer. Böylece matematiksel veri görsel bir PNG dosyasına dönüşür.
+
+### QR Code Tarama (Çözme - Decode) İşlemi
+Bir görsel dosyasının OpenCV ile okunup, pyzbar ile içindeki metnin çıkarılma mantığı aşağıdaki gibidir:
+
+```python
+import cv2
+import numpy as np
+from pyzbar.pyzbar import decode as pyzbar_decode
+
+def simple_qr_scan(image_bytes: bytes) -> str:
+    # 1. Aşama: Byte formatındaki veriyi Numpy dizisine çevir
+    image_array = np.frombuffer(image_bytes, np.uint8)
+    
+    # 2. Aşama: Numpy dizisini OpenCV görüntü formatına çevir
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    
+    if image is None:
+        return "Görsel okunamadı."
+
+    # 3. Aşama: Görseli daha rahat okunması için Siyah-Beyaz (Gri) tona çevir (Ön işlem)
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # 4. Aşama: pyzbar ile görseli tara
+    decoded_items = pyzbar_decode(gray_image)
+    
+    # 5. Aşama: Bulunan QR kodlarının içindeki veriyi çıkar
+    for item in decoded_items:
+        if item.type == "QRCODE":
+            # UTF-8 olarak metne çevir
+            text = item.data.decode("utf-8")
+            return text
+            
+    return "QR Code bulunamadı."
+```
+**Nasıl Çalışır?**
+`cv2.imdecode()` fonksiyonu dosyayı RAM'e açarak piksellerden oluşan bir matrise çevirir. Görüntüyü gri tona çevirmek (`COLOR_BGR2GRAY`) renk karmaşasını ortadan kaldırır. `pyzbar_decode()` arka planda siyah beyaz piksellerdeki hizalama karelerini (finder patterns) bulur, standart bir QR kodu olduğunu anlar ve üzerindeki bitleri decode ederek orijinal metne (string) ulaşır.
+
+---
 
 ## 9) Güvenlik Katmanı Nasıl Çalışıyor?
 
 `security_scan_url` basit bir risk skorlama mantığı yerine neden listesi yaklaşımı kullanır.
 
 Kontrol edilen başlıca işaretler:
-
 1. Şüpheli regex kalıpları.
 2. `@` içeren netloc yapısı.
 3. Punycode (`xn--`) olasılığı.
@@ -128,190 +227,29 @@ Kontrol edilen başlıca işaretler:
 7. HEAD isteği ile redirect belirtileri.
 
 Sonuç olarak:
-
 1. Neden yoksa `Güvenli`.
 2. En az bir neden varsa `Şüpheli Link`.
 
-## 10) Dosyaları Tek Tek Anlatım Notları
+## 10) Hoca Soruları ve Hazır Cevaplar
 
-### `manage.py`
-
-1. Django komut giriş noktasıdır.
-2. `runserver`, `migrate`, `check` buradan yürür.
-
-### `qrcode_project/settings.py`
-
-1. Proje ayar merkezi.
-2. `INSTALLED_APPS`, template, DB ve locale ayarları burada.
-
-### `qrcode_project/urls.py`
-
-1. Üst seviye routing.
-2. `admin/` ve uygulama route delegasyonu burada.
-
-### `qrtool/urls.py`
-
-1. Uygulama route tanımları.
-2. Ana route `index` view'a bağlı.
-
-### `qrtool/forms.py`
-
-1. Üretim ve çözümleme form tanımları.
-2. `clean()` ile koşullu doğrulama.
-3. Widget/CSS sınıfları ile UX iyileştirmesi.
-
-### `qrtool/views.py`
-
-1. İş akışı koordinasyon noktası.
-2. Üretim ve çözümleme sonrasında context günceller.
-
-### `qrtool/payloads.py`
-
-1. Veri standardizasyonu katmanı.
-2. Wi-Fi, VCard, Kripto/IBAN payload üretimi.
-
-### `qrtool/renderers.py`
-
-1. Görsel üretim katmanı.
-2. Format bağımlı render işlemleri.
-
-### `qrtool/decoders.py`
-
-1. Görselden QR okuma katmanı.
-2. Filtre temelli çözümleme yaklaşımı.
-
-### `qrtool/security.py`
-
-1. URL risk kontrol katmanı.
-2. Sonuçları standart bir veri sınıfı ile döndürür.
-
-### `templates/qrtool/base.html`
-
-1. Ortak UI iskeleti.
-2. Tema, düzen ve ortak stiller.
-
-### `templates/qrtool/index.html`
-
-1. Tek ekranlı ana iş akışı.
-2. Generator/Scanner sekmeleri ve sonuç paneli.
-
-## 11) Kütüphaneleri Neden Kullandın?
-
-Aşağıda proje gereksinlerinde listelenen ana paketler için kısa ve net açıklamalar; her biri için "neden kullandık?", "nerede kullandık?" ve "hangi dosya / fonksiyon" bilgisi verilmiştir.
-
-- **Django**
-   - Neden: Web uygulaması iskeleti, form işleme, template renderer, routing ve kolay geliştirme için.
-   - Nerede: Tüm HTTP akışı, formlar ve view orchestration.
-   - Hangi dosya/fonksiyon: `manage.py` (başlatma), `qrcode_project/settings.py` (ayarlar), `qrtool/views.py::index()` (istek orkestrasyonu), `qrtool/forms.py` (form tanımları).
-
-- **segno**
-   - Neden: Güvenilir QR matris (model) üretimi ve SVG/bitmap kaydetme yetenekleri için.
-   - Nerede: QR matrisi oluşturma ve bazı SVG dönüşümlerinde yedek mekanizma olarak.
-   - Hangi dosya/fonksiyon: `qr_code.py` (örnek kullanım: `segno.make()`), `qrtool/renderers.py::_make_qr_matrix()` (içinde `segno.make()` çağrısı) ve `_render_svg()` (QR objesinin SVG olarak kaydı).
-
-- **Pillow (PIL)**
-   - Neden: Raster görüntü oluşturma, çizim, logo bindirme ve PNG/GIF kaydetme işlemleri için.
-   - Nerede: PNG/GIF frame üretimi, logo ölçeklendirme, renk/alpha işlemleri.
-   - Hangi dosya/fonksiyon: `qrtool/renderers.py` — `from PIL import Image, ImageColor, ImageDraw, ImageOps`; özellikle `_render_png_or_gif()` ve `_segno_svg_bytes_to_png_bytes()` fonksiyonları.
-
-- **opencv-python (cv2)**
-   - Neden: Görsel ön işleme (gri tonlama, eşikleme, imdecode) ve farklı filtrelerle decode başarısını artırmak için.
-   - Nerede: Yüklenen görsellerin belleğe alınması, renk dönüşümü ve thresholding.
-   - Hangi dosya/fonksiyon: `qrtool/decoders.py` — `_decode_qr_image()` içinde `cv2.imdecode`, `cv2.cvtColor`, `cv2.threshold` kullanımı.
-
-- **NumPy**
-   - Neden: Byte dizilerini OpenCV ile uyumlu ndarray'lara çevirmek ve sayısal veri tipleriyle çalışmak için.
-   - Nerede: Görsel byte buffer → `np.ndarray` dönüşümü.
-   - Hangi dosya/fonksiyon: `qrtool/decoders.py` — `np.frombuffer(source_bytes, np.uint8)`.
-
-- **pyzbar**
-   - Neden: ZBar tabanlı QR/barcode çözümleme; kolay kullanımlı decode API'si sağlar.
-   - Nerede: Ön işlem sonrası barcode/QR algılama ve çözümleme.
-   - Hangi dosya/fonksiyon: `qrtool/decoders.py` — `from pyzbar.pyzbar import decode as pyzbar_decode`; `decode_with_pyzbar()` fonksiyonu çözümlenmiş `item.data` ve `item.type` ile çalışır.
-
-- **requests**
-   - Neden: Harici URL'lerin HEAD isteğiyle yönlendirme ve Location başlığı kontrolü yapmak için (güvenlik taraması).
-   - Nerede: URL güvenlik katmanında harici istek yapılırken.
-   - Hangi dosya/fonksiyon: `qrtool/security.py::security_scan_url()` — `requests.head(url, allow_redirects=False, timeout=3)`.
-
-- **qrcode (qrcode[pil])**
-   - Neden: Alternatif QR üretim kütüphanesi olarak requirements'te listelenmiş olabilir (Pillow entegrasyonu). Ancak proje kodunda doğrudan `import qrcode` veya kullanımı bulunmamaktadır.
-   - Nerede: (şu an kullanılmıyor — requirements'te opsiyonel/legacy olarak duruyor).
-
-- **PyMuPDF (`fitz`)**
-   - Neden: SVG içeriklerini rasterize edip PNG byte'ı üretmek için (bazı SVG yüklemelerinde alternatif dönüşüm sağlar).
-   - Nerede: SVG → PNG dönüşümü denemelerinde, yüklü ise daha kaliteli raster üretir.
-   - Hangi dosya/fonksiyon: `qrtool/renderers.py::_svg_bytes_to_png_bytes()` içinde dinamik olarak `importlib.import_module("fitz")` ile kullanılır; hata durumunda sessizce atlanır.
-
-- **zxing-cpp**
-   - Neden: Başka bir alternatif decoder/kitaplık; requirements'te listelenmiş olabilir.
-   - Nerede: Proje kaynak kodunda doğrudan bir import veya kullanım bulunmuyor — opsiyonel/alternatif.
-
-Not: `fitz` (PyMuPDF) ve `qrcode`/`zxing-cpp` gibi paketler requirements'te yer alsa da kodda dinamik veya hiç kullanılmama durumları var. Bu paketler opsiyonel araçlar/alternatifler olarak listelenmiş olabilir; temizleme (unused dependency kaldırma) veya gerçek kullanım eklenmesi mantıklı olabilir.
-
-## 12) Demo Senaryosu (Dakika Dakika)
-
-### 0:00 - 0:30
-
-1. Projenin amacı ve iki ana fonksiyonu: üretim + çözümleme.
-
-### 0:30 - 1:30
-
-1. URL ile QR üretimi.
-2. Çıktı formatı değişimi.
-3. QR önizleme ve indirme.
-
-### 1:30 - 2:30
-
-1. Scanner sekmesine geçiş.
-2. Test görseli yükleme.
-3. Çözümlenen içeriğin gösterimi.
-
-### 2:30 - 3:00
-
-1. Güvenlik etiketi ve nedenler.
-2. Boş değerle üretim denemesi ve validasyon mesajı.
-
-## 13) Hoca Soruları ve Hazır Cevaplar
-
-1. Neden modüler yapıya geçtin?
+1. **Neden modüler yapıya geçtin?**
    - Tek dosyada çok sorumluluk vardı. Modüler yapı bakım ve test kolaylığı sağladı.
-
-2. Performans olarak ne kazandırdı?
+2. **Performans olarak ne kazandırdı?**
    - Büyük bir hız artışından çok sürdürülebilirlik ve hata ayıklama kolaylığı sağladı.
-
-3. Bu güvenlik sistemi antivirüs mü?
+3. **Bu güvenlik sistemi antivirüs mü?**
    - Hayır. Bu temel heuristik risk uyarı katmanı.
-
-4. Neden server-side validasyon önemli?
+4. **Neden server-side validasyon önemli?**
    - Frontend manipüle edilse bile iş kurallarını backend garanti eder.
-
-5. SVG neden ayrı akış?
+5. **SVG neden ayrı akış?**
    - Çünkü decode için raster dönüşüm gerekebiliyor.
-
-6. GIF üretimi nasıl sağlanıyor?
+6. **GIF üretimi nasıl sağlanıyor?**
    - QR modülleri frame bazlı çizdirilip GIF olarak encode ediliyor.
+7. **Logo eklemek okunabilirliği bozmaz mı?**
+   - Boyut kontrollü merkez yerleşim (%22) kullanıldığı için risk azaltılıyor ve QR kodun hata düzeltme seviyesi "h" (yüksek) tutuluyor.
+8. **Çözümleme başarısı düşük olursa ne yaparsın?**
+   - OpenCV ile `iter_preprocessed_images` içerisinde yaptığım gibi ekstra filtreler (OTSU threshold, grayscale) uygularım.
 
-7. Logo eklemek okunabilirliği bozmaz mı?
-   - Boyut kontrollü merkez yerleşim kullanıldığı için risk azaltılıyor.
-
-8. Hata aldığında ilk nereyi kontrol ediyorsun?
-   - Form validasyonu, payload üretimi, render katmanı ve decode giriş formatı.
-
-9. Çözümleme başarısı düşük olursa ne yaparsın?
-   - Ek filtreler, kontrast ayarı ve alternatif decoder yaklaşımı eklerim.
-
-10. Bu proje nasıl büyütülür?
-    - Kullanıcı geçmişi, API katmanı, daha güçlü URL reputation entegrasyonu eklenebilir.
-
-## 14) Kısa Ezber Cümleleri
-
-1. "Bu projede üretim, çözümleme ve güvenlik farkındalığını tek panelde birleştirdim."
-2. "Refactor sonrası views sadece orchestration yapıyor, iş kuralları modüllere ayrıldı."
-3. "Son güncelleme ile boş veriyle QR üretimini server-side validasyonla engelledim."
-4. "URL içeriklerinde heuristik güvenlik kontrolü ile kullanıcıya risk uyarısı veriyorum."
-
-## 15) Çalıştırma Komutları
+## 11) Çalıştırma Komutları
 
 ```powershell
 python -m venv .venv
@@ -322,6 +260,6 @@ pip install -r requirements.txt
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-## 16) Güçlü Kapanış Cümlesi
+## 12) Güçlü Kapanış Cümlesi
 
-Bu çalışmada yalnızca QR üretimi değil; modüler yazılım tasarımı, veri doğrulama disiplini, görsel işleme ve temel güvenlik farkındalığı aynı üründe birleştirildi. Son güncelleme ile boş değer üretimi de kapatılarak uygulamanın güvenilirliği artırıldı.
+Bu çalışmada yalnızca QR üretimi değil; modüler yazılım tasarımı, veri doğrulama disiplini, görsel işleme ve temel güvenlik farkındalığı aynı üründe birleştirildi. Son güncelleme ile boş değer üretimi de kapatılarak uygulamanın güvenilirliği artırıldı. Ayrıca farklı görüntü filtreleme teknikleriyle gerçek hayat kullanım senaryolarındaki okuma başarısı maksimize edildi.
